@@ -74,12 +74,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Invalid username or password")
     return {"access_token": user['username'], "token_type": "bearer"}
 
-@router.get("/profile")
-def read_profile(current_user: dict = Depends(lambda token: get_current_user(token))):
-    return current_user
-
 def get_current_user(token: str = Depends(oauth2_scheme)):
     user_doc = users_ref.document(token).get()
     if not user_doc.exists:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return user_doc.to_dict()
+
+@router.get("/profile")
+def read_profile(current_user: dict = Depends(get_current_user)):
+    return current_user
