@@ -20,19 +20,24 @@ def signup(username, email, full_name, password):
             "password": password
         })
 
+        # Display raw response info
         st.write("DEBUG: status code", res.status_code)
-        st.write("DEBUG: raw response", res.text)
+        st.write("DEBUG: response text", res.text)
 
         if res.status_code == 200:
             st.success("✅ Account created. Please log in.")
         else:
             try:
+                # Try to extract JSON error detail
                 error_detail = res.json().get("detail", "Unknown error")
-            except:
+            except json.JSONDecodeError:
+                # If not valid JSON, just show raw text
                 error_detail = res.text
             st.error(f"❌ Signup failed: {error_detail}")
+
     except Exception as e:
         st.error(f"❌ Network or server error: {e}")
+
 
     
     # Debug print
