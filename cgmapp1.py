@@ -11,9 +11,10 @@ import plotly.express as px
 from datetime import datetime
 from io import StringIO
 from fastapi import FastAPI
-import auth_fastapi_module
+from auth_fastapi_module import router
 
 app = FastAPI()
+app.include_router(router)
 
 @app.get("/")
 def read_root():
