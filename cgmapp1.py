@@ -391,3 +391,18 @@ elif page == "Glucose Trend Charts":
         })
         fig = px.line(df, x="Day", y="Glucose", markers=True, title="Glucose Readings Over Time")
         st.plotly_chart(fig)
+        
+        
+        from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {
+        "status": "✅ FastAPI is running",
+        "message": "Welcome to your CGM + WHOOP + GPT API"
+    }
+
+# 🔗 This line is critical
+import auth_fastapi_module

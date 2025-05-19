@@ -5,3 +5,15 @@ firebase-admin==6.3.0
 pydantic==2.5.3
 passlib==1.7.4
 httpx==0.25.1
+streamlit
+openai
+firebase-admin
+pandas
+plotly
+requests
+uvicorn
+fastapi
+passlib[bcrypt]
+pydantic
+python-dotenv
+python-multipart
