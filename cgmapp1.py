@@ -11,6 +11,7 @@ import plotly.express as px
 from datetime import datetime
 from io import StringIO
 from fastapi import FastAPI
+import auth_fastapi_module
 
 app = FastAPI()
 
