@@ -18,6 +18,16 @@ def signup(username, email, full_name, password):
         "full_name": full_name,
         "password": password
     })
+    
+    # Debug print
+    st.write("DEBUG: signup status code →", res.status_code)
+    st.write("DEBUG: signup response →", res.text)
+
+    if res.status_code == 200:
+        st.success("✅ Account created. Please log in.")
+    else:
+        st.error(f"❌ Signup failed: {res.json()['detail']}")
+
     if res.status_code == 200:
         st.success("✅ Account created. Please log in.")
     else:
