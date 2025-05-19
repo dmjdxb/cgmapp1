@@ -1,7 +1,8 @@
 import streamlit as st
 import requests
 
-API_URL = "http://127.0.0.1:8000"  # Your FastAPI backend
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+ # Your FastAPI backend
 
 # Session state to store the token
 if "auth_token" not in st.session_state:
