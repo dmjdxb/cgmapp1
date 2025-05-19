@@ -1,0 +1,7 @@
+fastapi==0.109.0
+uvicorn==0.24.0
+plotly==5.21.0
+firebase-admin==6.3.0
+pydantic==2.5.3
+passlib==1.7.4
+httpx==0.25.1

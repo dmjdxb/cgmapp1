@@ -1,0 +1,43 @@
+# 🔒 Do not commit Firebase private key
+firebase_credentials.json
+
+# 🧪 Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# 💻 Virtual environments
+env/
+venv/
+.venv/
+
+# 🛠 IDE settings (VS Code, PyCharm, etc.)
+.vscode/
+.idea/
+
+# 🍏 macOS hidden files
+.DS_Store
+
+# 🔧 Streamlit cache (optional)
+.streamlit/
+
+# 🧪 Jupyter notebook checkpoints (if used)
+.ipynb_checkpoints/
+
+# Sensitive secrets
+firebase-service-account.json
+
+# Python clutter
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# IDE/project files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Streamlit cache
+.streamlit/

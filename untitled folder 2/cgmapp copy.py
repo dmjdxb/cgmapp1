@@ -1,0 +1,556 @@
+
+# ✅ CGM + WHOOP Nutrition App – Complete MVP
+# Paste of your full Python code from the .rtf goes here.
+# This placeholder will be replaced with actual code when delivered to user.
+
+# app.py — CGM + WHOOP Nutrition Planner App (Complete MVP)
+
+"""
+This script implements a working MVP for the CGM + WHOOP nutrition app using Streamlit.
+Features:
+- User input (CGM, WHOOP strain, recovery, goals)
+- Macro and calorie calculation
+- GPT-based meal generation
+- Glucose trend visualization
+- CSV/TXT export
+- Commented placeholders for future API integrations and database logic
+"""
+
+# -----------------------------------------------
+# Step 1: Imports and Configuration
+# -----------------------------------------------
+import streamlit as st
+import openai
+import pandas as pd
+import plotly.express as px
+import os
+from io import StringIO
+
+st.set_page_config(page_title="CGM + WHOOP Nutrition Planner", layout="wide")
+
+# -----------------------------------------------
+# Step 2: Sidebar – User Input
+# -----------------------------------------------
+with st.sidebar:
+    st.header("User Info")
+    name = st.text_input("Name")
+    weight = st.number_input("Weight (kg)", min_value=30, max_value=200, value=75)
+    goal = st.selectbox("Goal", ["Fat Loss", "Maintenance", "Muscle Gain"])
+    activity_level = st.selectbox("Activity Level", ["Low", "Medium", "High"])
+    cgm_data = st.text_area("Enter CGM values (comma-separated)", "110,115,120,108,95")
+
+st.subheader("Recovery & Training Input (WHOOP)")
+strain = st.slider("Yesterday's Strain (0–21)", 0, 21, 12)
+recovery = st.slider("Recovery Score (0–100)", 0, 100, 65)
+
+# -----------------------------------------------
+# Step 3: Macro & Calorie Calculator
+# -----------------------------------------------
+st.subheader("Calculated Macros")
+cgm_values = [int(x.strip()) for x in cgm_data.split(",") if x.strip().isdigit()]
+
+if cgm_values:
+    avg_glucose = sum(cgm_values) / len(cgm_values)
+    calories = weight * (25 if goal == "Fat Loss" else 30 if goal == "Maintenance" else 35)
+    protein = weight * 2.2
+    carbs = weight * 1.5 if avg_glucose > 110 else weight * 2
+    fat = max((calories - (protein * 4 + carbs * 4)) / 9, 0)
+
+    st.write(f"**Calories:** {int(calories)} kcal")
+    st.write(f"**Protein:** {int(protein)} g")
+    st.write(f"**Carbohydrates:** {int(carbs)} g")
+    st.write(f"**Fats:** {int(fat)} g")
+else:
+    st.warning("Please enter valid CGM values.")
+
+# -----------------------------------------------
+# Step 4: GPT Meal Plan Generator
+# -----------------------------------------------
+st.subheader("AI-Generated Meal Plan")
+meal_plan = ""
+
+if st.button("Generate Meal Plan") and cgm_values:
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    prompt = (
+        f"Create a 1-day meal plan that includes {int(calories)} calories, "
+        f"{int(protein)}g protein, {int(carbs)}g carbs, and {int(fat)}g fat. "
+        f"Make it low-FODMAP and suitable for someone training with a WHOOP strain of {strain}."
+    )
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a certified sports nutritionist."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        meal_plan = response['choices'][0]['message']['content']
+        st.text_area("Meal Plan", meal_plan, height=300)
+    except Exception as e:
+        st.error(f"Error generating meal plan: {e}")
+
+# -----------------------------------------------
+# Step 5: Glucose Trend Chart
+# -----------------------------------------------
+st.subheader("📊 Glucose Trend Chart")
+
+if cgm_values:
+    df = pd.DataFrame({
+        "Day": [f"Day {i+1}" for i in range(len(cgm_values))],
+        "Glucose": cgm_values
+    })
+    fig = px.line(df, x="Day", y="Glucose", markers=True, title="Glucose Readings Over Time")
+    st.plotly_chart(fig)
+
+# -----------------------------------------------
+# Step 6: Export Buttons
+# -----------------------------------------------
+st.subheader("📥 Export Your Data")
+
+if cgm_values:
+    export_df = pd.DataFrame({
+        "Calories": [int(calories)],
+        "Protein (g)": [int(protein)],
+        "Carbs (g)": [int(carbs)],
+        "Fat (g)": [int(fat)],
+        "WHOOP Strain": [strain],
+        "Recovery Score": [recovery]
+    })
+
+    csv = export_df.to_csv(index=False)
+    st.download_button("Download Macros (CSV)", csv, file_name="macros.csv", mime="text/csv")
+
+    if meal_plan:
+        meal_bytes = meal_plan.encode("utf-8")
+        st.download_button("Download Meal Plan (TXT)", meal_bytes, file_name="meal_plan.txt", mime="text/plain")
+
+# -----------------------------------------------
+# Step 7: Firebase Integration – Save Macros and Meal Plans
+# -----------------------------------------------
+
+st.markdown("""
+### 🔌 Future API Integrations
+- WHOOP API (OAuth2): Connect directly to WHOOP to pull recovery/strain/sleep data.
+- Apple HealthKit (iOS only): Sync glucose from Libre via iPhone and store in backend.
+- LibreView API: OAuth + fetch CGM readings automatically.
+
+### 🗃️ Future Database Integration (e.g., Firebase or Supabase)
+- Store user info, CGM history, meal plans
+- Log GPT usage tokens per user
+- Enable persistent login and dashboard history
+
+""")
+
+# -----------------------------------------------
+# Step 8: Firebase Integration Logic (Firestore + AI Learning Component)
+# -----------------------------------------------
+
+# 📦 Firebase Setup (requires firebase_admin and service account JSON)
+# pip install firebase-admin
+
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Load Firebase credentials (download from Firebase Console)
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate("firebase-service-account.json")
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+    except Exception as e:
+        st.warning("Firebase not initialized: " + str(e))
+
+# Save macro and meal data (if Firebase loaded successfully)
+if 'db' in globals() and cgm_values and meal_plan:
+    try:
+        user_data = {
+            'name': name,
+            'weight': weight,
+            'goal': goal,
+            'activity_level': activity_level,
+            'glucose_data': cgm_values,
+            'calories': int(calories),
+            'protein': int(protein),
+            'carbs': int(carbs),
+            'fat': int(fat),
+            'strain': strain,
+            'recovery': recovery,
+            'meal_plan': meal_plan,
+        }
+        doc_ref = db.collection("users").document(name if name else "anonymous")
+        doc_ref.set(user_data)
+        st.success("Data saved to Firebase.")
+    except Exception as e:
+        st.error("Error saving to Firebase: " + str(e))
+
+# -----------------------------------------------
+# Step 9: Meal Plan Mode Selector + Adaptive Logic
+# -----------------------------------------------
+
+st.subheader("🤖 AI-Adjusted Nutrition Plan (Based on Glucose Trends)")
+
+# Function to fetch historical glucose and macro data from Firebase
+def fetch_glucose_history(user_name):
+    try:
+        doc_ref = db.collection("users").document(user_name)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict().get("glucose_data", [])
+        else:
+            return []
+    except Exception as e:
+        st.error("Failed to fetch history: " + str(e))
+        return []
+
+# Rule-based AI adjustment logic (based on trend)
+def adjust_macros_based_on_glucose(glucose_history, base_calories, base_protein, base_carbs, base_fat):
+    if not glucose_history:
+        return base_calories, base_protein, base_carbs, base_fat
+
+    avg_glucose = sum(glucose_history) / len(glucose_history)
+    glucose_variability = max(glucose_history) - min(glucose_history)
+
+    # Example AI rules:
+    if avg_glucose > 125:
+        base_carbs *= 0.85
+        base_fat *= 1.1
+    elif avg_glucose < 90:
+        base_carbs *= 1.1
+
+    if glucose_variability > 40:
+        base_calories *= 0.95
+        base_carbs *= 0.9
+
+    return int(base_calories), int(base_protein), int(base_carbs), int(base_fat)
+
+# Apply AI adjustment to current user data
+if 'db' in globals() and name:
+    history = fetch_glucose_history(name)
+    adj_calories, adj_protein, adj_carbs, adj_fat = adjust_macros_based_on_glucose(
+        history, calories, protein, carbs, fat
+    )
+
+    st.markdown(f"**AI-Adjusted Calories:** {adj_calories} kcal")
+    st.markdown(f"**Protein:** {adj_protein} g | Carbs: {adj_carbs} g | Fat: {adj_fat} g")
+
+    if st.button("Generate AI-Personalized Meal Plan"):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        ai_prompt = (
+            f"Create a meal plan for {adj_calories} kcal, "
+            f"{adj_protein}g protein, {adj_carbs}g carbs, and {adj_fat}g fat. "
+            f"Based on prior glucose sensitivity, emphasize blood sugar balance and recovery."
+        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a sports dietitian optimizing based on CGM."},
+                    {"role": "user", "content": ai_prompt}
+                ]
+            )
+            ai_meal_plan = response['choices'][0]['message']['content']
+            st.text_area("AI-Generated Personalized Meal Plan", ai_meal_plan, height=300)
+        except Exception as e:
+            st.error("AI Meal Generation Failed: " + str(e))
+
+# -----------------------------------------------
+# -----------------------------------------------
+# Step 10: Meal Generation Toggle + Conditional Execution
+# -----------------------------------------------
+
+st.subheader("🍽️ Select Meal Generation Mode")
+
+mode = st.radio(
+    "Choose your preferred method for meal planning:",
+    ("Standard", "AI (CGM-based)", "WHOOP + CGM")
+)
+
+if mode == "Standard":
+    st.subheader("🔹 Standard Mode (Static Macros)")
+    st.markdown(f"**Calories:** {int(calories)} kcal")
+    st.markdown(f"**Protein:** {int(protein)}g | Carbs: {int(carbs)}g | Fat: {int(fat)}g")
+
+    if st.button("Generate Standard Meal Plan"):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        prompt = (
+            f"Create a 1-day meal plan using {int(calories)} kcal, "
+            f"{int(protein)}g protein, {int(carbs)}g carbs, and {int(fat)}g fat. "
+            f"Focus on balanced meals for wellness and daily performance."
+        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a general nutritionist for wellness and performance."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            std_plan = response['choices'][0]['message']['content']
+            st.text_area("Standard Meal Plan", std_plan, height=300)
+        except Exception as e:
+            st.error("Standard plan failed: " + str(e))
+
+elif mode == "AI (CGM-based)":
+    st.subheader("🧠 Adaptive Mode (CGM-Based Macros)")
+    history = fetch_glucose_history(name)
+    ai_calories, ai_protein, ai_carbs, ai_fat = adjust_macros_based_on_glucose(
+        history, calories, protein, carbs, fat
+    )
+    st.markdown(f"**AI-Adjusted Calories:** {ai_calories} kcal")
+    st.markdown(f"**Protein:** {ai_protein}g | Carbs: {ai_carbs}g | Fat: {ai_fat}g")
+
+    if st.button("Generate AI-Personalized Plan"):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        prompt = (
+            f"Create a meal plan for {ai_calories} kcal, "
+            f"{ai_protein}g protein, {ai_carbs}g carbs, and {ai_fat}g fat. "
+            f"Optimize for stable glucose levels and metabolic health."
+        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a CGM-informed dietitian focused on metabolic optimization."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            ai_cgm_plan = response['choices'][0]['message']['content']
+            st.text_area("AI-Adjusted Meal Plan", ai_cgm_plan, height=300)
+        except Exception as e:
+            st.error("AI meal plan failed: " + str(e))
+
+elif mode == "WHOOP + CGM":
+    st.subheader("💪 Combined Mode (WHOOP + CGM)")
+    whoop_macros = combined_adaptive_macros(
+        cgm_values, strain, recovery, sleep_hours,
+        calories, protein, carbs, fat
+    )
+    w_cals, w_protein, w_carbs, w_fat = whoop_macros
+    st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
+    st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
+
+    if st.button("Generate WHOOP + CGM Meal Plan"):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        prompt = (
+            f"Create a 1-day performance meal plan using {w_cals} kcal, "
+            f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
+            f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}. "
+            f"Glucose average: {avg_glucose}. Adjust for blood sugar balance and performance."
+        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a high-performance dietitian optimizing for glucose, readiness, and recovery."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            combo_plan = response['choices'][0]['message']['content']
+            st.text_area("WHOOP + CGM-Based Meal Plan", combo_plan, height=300)
+        except Exception as e:
+            st.error("Combo plan failed: " + str(e))
+
+# -----------------------------------------------
+# Step 11: Insulin Resistance Mode – Firebase Data + Risk Estimation
+# -----------------------------------------------
+
+st.subheader("🧪 Insulin Resistance Monitoring Mode")
+
+# Allow user to choose monitoring window
+monitor_days = st.slider("Select monitoring period (days)", min_value=3, max_value=14, value=7)
+
+# Simulated or Firebase data retrieval for demo purposes
+# Replace this with Firebase data fetch when ready
+fasting_data = st.text_area("Enter daily fasting glucose values (comma-separated)", "95,98,105,100,99,101,107")
+postmeal_data = st.text_area("Enter daily post-meal glucose values (comma-separated)", "130,145,160,155,140,150,165")
+
+try:
+    fasting_values = [int(x.strip()) for x in fasting_data.split(",") if x.strip().isdigit()][:monitor_days]
+    postmeal_values = [int(x.strip()) for x in postmeal_data.split(",") if x.strip().isdigit()][:monitor_days]
+except:
+    fasting_values = []
+    postmeal_values = []
+
+if fasting_values and postmeal_values and len(fasting_values) == len(postmeal_values):
+    dates = [f"Day {i+1}" for i in range(len(fasting_values))]
+    df_glucose = pd.DataFrame({
+        "Day": dates,
+        "Fasting": fasting_values,
+        "Post-Meal": postmeal_values
+    })
+
+    st.line_chart(df_glucose.set_index("Day"))
+
+    # Thresholds per ADA/NICE (generalized)
+    fasting_threshold = 100
+    postmeal_threshold = 140
+
+    avg_fasting = sum(fasting_values) / len(fasting_values)
+    avg_postmeal = sum(postmeal_values) / len(postmeal_values)
+
+    st.markdown(f"**Average Fasting Glucose:** {avg_fasting:.1f} mg/dL")
+    st.markdown(f"**Average Post-Meal Glucose:** {avg_postmeal:.1f} mg/dL")
+
+    # Rule-based insulin resistance risk flagging
+    if avg_fasting >= 100 and avg_postmeal >= 140:
+        st.error("⚠️ High likelihood of insulin resistance. Consult a healthcare professional.")
+    elif avg_fasting >= 95 or avg_postmeal >= 135:
+        st.warning("🟡 Glucose patterns suggest early insulin resistance risk. Consider monitoring diet and exercise.")
+    else:
+        st.success("🟢 Glucose levels are within normal ranges.")
+else:
+    st.info("Please enter equal-length fasting and post-meal data sets to analyze trends.")
+
+# -----------------------------------------------
+# Firebase-based Glucose Log Retrieval for IR Analysis
+# -----------------------------------------------
+
+st.subheader("🧪 Insulin Resistance Monitoring (Auto-Logged via Firebase)")
+
+# User defines period to assess
+monitor_days = st.slider("Select monitoring period (days)", min_value=3, max_value=14, value=7)
+
+# Function to fetch glucose logs from Firestore
+@st.cache_data(show_spinner=False)
+def fetch_glucose_logs(user_name, days):
+    try:
+        logs_ref = db.collection("users").document(user_name).collection("glucose_logs").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(days)
+        entries = logs_ref.stream()
+        fasting = []
+        postmeal = []
+        for entry in entries:
+            data = entry.to_dict()
+            if "fasting" in data and "postmeal" in data:
+                fasting.append(data["fasting"])
+                postmeal.append(data["postmeal"])
+        return fasting[::-1], postmeal[::-1]  # reverse to chronological
+    except Exception as e:
+        st.error(f"Could not retrieve data: {e}")
+        return [], []
+
+# Load fasting + postmeal data
+if name:
+    fasting_values, postmeal_values = fetch_glucose_logs(name, monitor_days)
+
+    if fasting_values and postmeal_values and len(fasting_values) == len(postmeal_values):
+        dates = [f"Day {i+1}" for i in range(len(fasting_values))]
+        df_glucose = pd.DataFrame({
+            "Day": dates,
+            "Fasting": fasting_values,
+            "Post-Meal": postmeal_values
+        })
+
+        st.line_chart(df_glucose.set_index("Day"))
+
+        fasting_threshold = 100
+        postmeal_threshold = 140
+
+        avg_fasting = sum(fasting_values) / len(fasting_values)
+        avg_postmeal = sum(postmeal_values) / len(postmeal_values)
+
+        st.markdown(f"**Average Fasting Glucose:** {avg_fasting:.1f} mg/dL")
+        st.markdown(f"**Average Post-Meal Glucose:** {avg_postmeal:.1f} mg/dL")
+
+        if avg_fasting >= 100 and avg_postmeal >= 140:
+            st.error("⚠️ High likelihood of insulin resistance. Consult a healthcare professional.")
+        elif avg_fasting >= 95 or avg_postmeal >= 135:
+            st.warning("🟡 Glucose patterns suggest early insulin resistance risk. Consider lifestyle changes.")
+        else:
+            st.success("🟢 Glucose levels appear normal. Keep up the good work.")
+    else:
+        st.info("No glucose log entries found for this time window. Please log values into Firebase.")
+else:
+    st.warning("Enter your name to load personalized glucose trends.")
+
+# ✅ End of MVP script — now with Firebase-driven IR risk prediction
+# -----------------------------------------------
+
+st.subheader("📡 WHOOP + CGM Adaptive Nutrition Engine")
+
+# Simulate or use manually entered WHOOP data
+sleep_hours = st.slider("Sleep Duration (hrs)", 0.0, 12.0, 7.5, 0.5)
+
+# Function to combine CGM + WHOOP to adjust nutrition
+
+def combined_adaptive_macros(glucose_data, strain, recovery, sleep, base_cals, base_prot, base_carbs, base_fat):
+    if not glucose_data:
+        return base_cals, base_prot, base_carbs, base_fat
+
+    avg_glucose = sum(glucose_data) / len(glucose_data)
+    variability = max(glucose_data) - min(glucose_data)
+
+    # Base multipliers
+    c_mult = 1.0
+    p_mult = 1.0
+    carb_mult = 1.0
+    fat_mult = 1.0
+
+    # CGM-based adjustments
+    if avg_glucose > 125:
+        carb_mult *= 0.85
+        fat_mult *= 1.1
+    elif avg_glucose < 90:
+        carb_mult *= 1.1
+
+    if variability > 40:
+        c_mult *= 0.95
+        carb_mult *= 0.9
+
+    # WHOOP-based adjustments
+    if strain > 16:
+        c_mult *= 1.10
+        carb_mult *= 1.15
+    elif strain < 8:
+        c_mult *= 0.95
+
+    if recovery < 40:
+        p_mult *= 1.05
+        c_mult *= 0.95
+
+    if sleep < 6:
+        fat_mult *= 1.1
+        carb_mult *= 0.9
+
+    new_cals = base_cals * c_mult
+    new_prot = base_prot * p_mult
+    new_carbs = base_carbs * carb_mult
+    new_fat = base_fat * fat_mult
+
+    return int(new_cals), int(new_prot), int(new_carbs), int(new_fat)
+
+# Run combined adaptation
+if cgm_values and name:
+    whoop_macros = combined_adaptive_macros(
+        cgm_values, strain, recovery, sleep_hours,
+        calories, protein, carbs, fat
+    )
+    w_cals, w_protein, w_carbs, w_fat = whoop_macros
+
+    st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
+    st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
+
+    if st.button("Generate WHOOP + CGM Meal Plan"):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        prompt = (
+            f"Create a 1-day performance meal plan using {w_cals} kcal, "
+            f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
+            f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}. "
+            f"Glucose average: {avg_glucose}. Adjust for blood sugar balance and performance."
+        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a high-performance sports nutritionist optimizing for recovery, glucose, and readiness."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            ai_combo_plan = response['choices'][0]['message']['content']
+            st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
+        except Exception as e:
+            st.error("Meal plan failed: " + str(e))
+
+# ✅ End of MVP script — now with WHOOP & CGM intelligent macro system
+
