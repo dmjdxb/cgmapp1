@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import requests
+import json
 
 
 API_URL = os.getenv("API_URL", "https://cgmapp1.onrender.com")
