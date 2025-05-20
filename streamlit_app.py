@@ -40,19 +40,19 @@ def signup(username, email, full_name, password):
 
 
     
-    # Debug print
+        # Debug print
     st.write("DEBUG: signup status code →", res.status_code)
     st.write("DEBUG: signup response →", res.text)
 
     if res.status_code == 200:
         st.success("✅ Account created. Please log in.")
     else:
-        st.error(f"❌ Signup failed: {res.json()['detail']}")
+        try:
+            error_detail = res.json().get("detail", "Unknown error")
+        except Exception:
+            error_detail = res.text
+        st.error(f"❌ Signup failed: {error_detail}")
 
-    if res.status_code == 200:
-        st.success("✅ Account created. Please log in.")
-    else:
-        st.error(f"❌ Signup failed: {res.json()['detail']}")
 
 def login(username, password):
     res = requests.post(f"{API_URL}/token", data={
