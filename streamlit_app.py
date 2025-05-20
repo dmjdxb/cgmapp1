@@ -10,7 +10,6 @@ API_URL = os.getenv("API_URL", "https://cgmapp1.onrender.com")
 # Session state to store the token
 if "auth_token" not in st.session_state:
     st.session_state.auth_token = None
-
 def signup(username, email, full_name, password):
     try:
         res = requests.post(f"{API_URL}/signup", json={
@@ -20,38 +19,22 @@ def signup(username, email, full_name, password):
             "password": password
         })
 
-        # Display raw response info
-        st.write("DEBUG: status code", res.status_code)
-        st.write("DEBUG: response text", res.text)
+        # Debug logs
+        st.write("DEBUG: signup status code →", res.status_code)
+        st.write("DEBUG: signup response →", res.text)
 
         if res.status_code == 200:
             st.success("✅ Account created. Please log in.")
         else:
             try:
-                # Try to extract JSON error detail
                 error_detail = res.json().get("detail", "Unknown error")
-            except json.JSONDecodeError:
-                # If not valid JSON, just show raw text
+            except Exception:
                 error_detail = res.text
             st.error(f"❌ Signup failed: {error_detail}")
 
     except Exception as e:
         st.error(f"❌ Network or server error: {e}")
 
-
-    
-        # Debug print
-    st.write("DEBUG: signup status code →", res.status_code)
-    st.write("DEBUG: signup response →", res.text)
-
-    if res.status_code == 200:
-        st.success("✅ Account created. Please log in.")
-    else:
-        try:
-            error_detail = res.json().get("detail", "Unknown error")
-        except Exception:
-            error_detail = res.text
-        st.error(f"❌ Signup failed: {error_detail}")
 
 
 def login(username, password):
