@@ -27,29 +27,6 @@ category_breakdown = {
     "Symptoms": 65
 }
 
-# ✅ Floating MAS badge (appears on all pages)
-st.markdown(f"""
-    <style>
-        .mas-badge {{
-            position: fixed;
-            top: 12px;
-            left: 12px;
-            background-color: {'green' if mas_score >= 80 else 'orange' if mas_score >= 60 else 'red'};
-            color: white;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: bold;
-            z-index: 10000;
-        }}
-        section[data-testid="stSidebar"] > div:first-child {{
-            margin-top: 50px;
-        }}
-    </style>
-    <div class="mas-badge">
-        🧠 MAS: {mas_score}
-    </div>
-""", unsafe_allow_html=True)
 
 # ✅ FastAPI (not used by Streamlit unless run externally)
 app = FastAPI()
@@ -61,8 +38,6 @@ def read_root():
         "status": "✅ FastAPI is running",
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
-
-
 
 
 
@@ -117,6 +92,7 @@ if page == "Metabolic Adaptation Score":
     st.markdown("#### Category Breakdown")
     for key, value in category_breakdown.items():
         st.progress(int(value), text=f"{key}: {value}")
+        
 # ========== PAGE 1: Nutrition Profile ==========
 if page == "Nutrition Profile":
     st.title("📋 Build Your Nutrition Profile")
