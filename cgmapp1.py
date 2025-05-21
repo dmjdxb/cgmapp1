@@ -2,6 +2,7 @@
 # -------------------------------------------------------
 
 import streamlit as st
+
 st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
 import requests
