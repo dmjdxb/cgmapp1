@@ -1,5 +1,6 @@
 # ✅ Fully Merged NutriAI + CGM-WHOOP App
 # -------------------------------------------------------
+st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
 import streamlit as st
 import requests
@@ -15,7 +16,7 @@ from auth_fastapi_module import router
 import plotly.graph_objects as go
 
 
-st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
+
 
 st.markdown(f"""
     <style>
