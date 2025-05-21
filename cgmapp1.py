@@ -68,8 +68,7 @@ category_breakdown = {
 
 
 
-
-# ✅ The MAS tab content
+# ✅ The MAS tab content==== top of navagation bar===="
 if page == "Metabolic Adaptation Score":
     st.markdown("### 🧠 Metabolic Adaptation Score (MAS)")
 
@@ -101,7 +100,7 @@ if page == "Metabolic Adaptation Score":
 
         
 # ========== PAGE 1: Nutrition Profile ==========
-if page == "Nutrition Profile":
+elif page == "Nutrition Profile":
     st.title("📋 Build Your Nutrition Profile")
 
     with st.form("profile_form"):
