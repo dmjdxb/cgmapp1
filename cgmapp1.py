@@ -17,6 +17,19 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 import openai
 
+
+
+app = FastAPI()
+app.include_router(router)
+
+@app.get("/")
+def read_root():
+    return {
+        "status": "✅ FastAPI is running",
+        "message": "Welcome to your CGM + WHOOP + GPT API"
+    }
+
+
 # --- Placeholder score (for UI only) ---
 mas_score = 76
 trend_data = [65, 68, 72, 74, 76]
@@ -59,15 +72,6 @@ for key, value in category_breakdown.items():
     st.progress(int(value), text=f"{key}: {value}")
 
 
-app = FastAPI()
-app.include_router(router)
-
-@app.get("/")
-def read_root():
-    return {
-        "status": "✅ FastAPI is running",
-        "message": "Welcome to your CGM + WHOOP + GPT API"
-    }
 
 
 
