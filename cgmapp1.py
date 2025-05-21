@@ -17,6 +17,31 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
+st.markdown(f"""
+    <style>
+        .mas-badge {{
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            background-color: {'green' if mas_score >= 80 else 'orange' if mas_score >= 60 else 'red'};
+            color: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 10000;
+        }}
+
+        /* Avoid sidebar overlapping */
+        section[data-testid="stSidebar"] > div:first-child {{
+            margin-top: 50px;
+        }}
+    </style>
+    <div class="mas-badge">
+        🧠 MAS: {mas_score}
+    </div>
+""", unsafe_allow_html=True)
+
 
 app = FastAPI()
 app.include_router(router)
