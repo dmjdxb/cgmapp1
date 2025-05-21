@@ -16,6 +16,16 @@ from auth_fastapi_module import router
 import plotly.graph_objects as go
 
 
+app = FastAPI()
+app.include_router(router)
+
+@app.get("/")
+def read_root():
+    return {
+        "status": "✅ FastAPI is running",
+        "message": "Welcome to your CGM + WHOOP + GPT API"
+    }
+
 
 
 st.markdown(f"""
@@ -44,15 +54,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
-app = FastAPI()
-app.include_router(router)
 
-@app.get("/")
-def read_root():
-    return {
-        "status": "✅ FastAPI is running",
-        "message": "Welcome to your CGM + WHOOP + GPT API"
-    }
 
 # --- MAS Score & Breakdown (Must be defined before use) ---
 mas_score = 76
