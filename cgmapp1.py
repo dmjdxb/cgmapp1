@@ -28,6 +28,16 @@ def read_root():
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
 
+# --- MAS Score & Breakdown (Must be defined before use) ---
+mas_score = 76
+trend_data = [65, 68, 72, 74, 76]
+category_breakdown = {
+    "Glucose Stability": 80,
+    "HRV": 70,
+    "Sleep": 75,
+    "Macro Adherence": 78,
+    "Symptoms": 65
+}
 
 # Persistent MAS Score in Sidebar
 st.markdown(f"""
