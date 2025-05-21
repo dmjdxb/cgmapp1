@@ -1,8 +1,9 @@
 # ✅ Fully Merged NutriAI + CGM-WHOOP App
 # -------------------------------------------------------
-st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
 import streamlit as st
+st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
+
 import requests
 import json
 import os
@@ -27,6 +28,17 @@ def read_root():
     }
 
 
+
+# --- MAS Score & Breakdown (Must be defined before use) ---
+mas_score = 76
+trend_data = [65, 68, 72, 74, 76]
+category_breakdown = {
+    "Glucose Stability": 80,
+    "HRV": 70,
+    "Sleep": 75,
+    "Macro Adherence": 78,
+    "Symptoms": 65
+}
 
 st.markdown(f"""
     <style>
@@ -55,17 +67,6 @@ st.markdown(f"""
 
 
 
-
-# --- MAS Score & Breakdown (Must be defined before use) ---
-mas_score = 76
-trend_data = [65, 68, 72, 74, 76]
-category_breakdown = {
-    "Glucose Stability": 80,
-    "HRV": 70,
-    "Sleep": 75,
-    "Macro Adherence": 78,
-    "Symptoms": 65
-}
 
 # Persistent MAS Score in Sidebar
 st.markdown(f"""
