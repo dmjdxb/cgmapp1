@@ -2,7 +2,6 @@
 # -------------------------------------------------------
 
 import streamlit as st
-
 st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
 import requests
@@ -17,20 +16,7 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 
-
-app = FastAPI()
-app.include_router(router)
-
-@app.get("/")
-def read_root():
-    return {
-        "status": "✅ FastAPI is running",
-        "message": "Welcome to your CGM + WHOOP + GPT API"
-    }
-
-
-
-# --- MAS Score & Breakdown (Must be defined before use) ---
+# --- MAS Score & Breakdown (MUST be defined before badge) ---
 mas_score = 76
 trend_data = [65, 68, 72, 74, 76]
 category_breakdown = {
@@ -41,6 +27,7 @@ category_breakdown = {
     "Symptoms": 65
 }
 
+# ✅ Floating MAS badge (appears on all pages)
 st.markdown(f"""
     <style>
         .mas-badge {{
@@ -55,8 +42,6 @@ st.markdown(f"""
             font-weight: bold;
             z-index: 10000;
         }}
-
-        /* Avoid sidebar overlapping */
         section[data-testid="stSidebar"] > div:first-child {{
             margin-top: 50px;
         }}
@@ -66,32 +51,16 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+# ✅ FastAPI (not used by Streamlit unless run externally)
+app = FastAPI()
+app.include_router(router)
 
-
-
-# Persistent MAS Score in Sidebar
-st.markdown(f"""
-    <style>
-        .mas-badge {{
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background-color: {'green' if mas_score >= 80 else 'orange' if mas_score >= 60 else 'red'};
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            z-index: 9999;
-        }}
-        /* Prevents overlap with sidebar content */
-        section[data-testid="stSidebar"] > div:first-child {{
-            margin-top: 50px;
-        }}
-    </style>
-    <div class="mas-badge">
-        🧠 MAS: <strong>{mas_score}</strong>
-    </div>
-""", unsafe_allow_html=True)
+@app.get("/")
+def read_root():
+    return {
+        "status": "✅ FastAPI is running",
+        "message": "Welcome to your CGM + WHOOP + GPT API"
+    }
 
 
 
