@@ -14,9 +14,8 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
-import openai
 
+st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
 
 
 app = FastAPI()
@@ -30,47 +29,29 @@ def read_root():
     }
 
 
-# --- Placeholder score (for UI only) ---
-mas_score = 76
-trend_data = [65, 68, 72, 74, 76]
-category_breakdown = {
-    "Glucose Stability": 80,
-    "HRV": 70,
-    "Sleep": 75,
-    "Macro Adherence": 78,
-    "Symptoms": 65
-}
-
-# --- UI Header and Score Panel ---
-st.markdown("### 🧠 Metabolic Adaptation Score (MAS)")
-
-score_color = "green" if mas_score >= 80 else "orange" if mas_score >= 60 else "red"
+# Persistent MAS Score in Sidebar
 st.markdown(f"""
-<div style='padding: 1rem; border-radius: 10px; background-color: {score_color}; color: white; text-align: center; font-size: 1.5rem;'>
-Your MAS Score: <strong>{mas_score}</strong>
-</div>
+    <style>
+        .mas-badge {{
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: {'green' if mas_score >= 80 else 'orange' if mas_score >= 60 else 'red'};
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            z-index: 9999;
+        }}
+        /* Prevents overlap with sidebar content */
+        section[data-testid="stSidebar"] > div:first-child {{
+            margin-top: 50px;
+        }}
+    </style>
+    <div class="mas-badge">
+        🧠 MAS: <strong>{mas_score}</strong>
+    </div>
 """, unsafe_allow_html=True)
-
-# --- Optional Message ---
-st.info("This is your metabolic performance snapshot. Dynamic scoring will be available soon.")
-
-# --- Placeholder Trend Graph ---
-fig = go.Figure()
-fig.add_trace(go.Scatter(
-    x=[f"Week {i+1}" for i in range(len(trend_data))],
-    y=trend_data,
-    mode='lines+markers',
-    line=dict(color='royalblue', width=3),
-    marker=dict(size=8)
-))
-fig.update_layout(yaxis=dict(range=[0, 100]), height=300, title="MAS Weekly Trend (Placeholder)")
-st.plotly_chart(fig, use_container_width=True)
-
-# --- Category Breakdown Placeholder ---
-st.markdown("#### Category Breakdown")
-for key, value in category_breakdown.items():
-    st.progress(int(value), text=f"{key}: {value}")
-
 
 
 
@@ -91,6 +72,7 @@ if "chat_file" not in st.session_state:
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
+    "Metabolic Adaptation Score",
     "Nutrition Profile",
     "ChatGPT Meal Plan",
     "Glucose & Chat",
@@ -99,6 +81,33 @@ page = st.sidebar.radio("Navigate", [
     "Glucose Trend Charts"
 ])
 
+
+if page == "Metabolic Adaptation Score":
+    st.markdown("### 🧠 Metabolic Adaptation Score (MAS)")
+
+    score_color = "green" if mas_score >= 80 else "orange" if mas_score >= 60 else "red"
+    st.markdown(f"""
+    <div style='padding: 1rem; border-radius: 10px; background-color: {score_color}; color: white; text-align: center; font-size: 1.5rem;'>
+    Your MAS Score: <strong>{mas_score}</strong>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.info("This is your metabolic performance snapshot. Dynamic scoring will be available soon.")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[f"Week {i+1}" for i in range(len(trend_data))],
+        y=trend_data,
+        mode='lines+markers',
+        line=dict(color='royalblue', width=3),
+        marker=dict(size=8)
+    ))
+    fig.update_layout(yaxis=dict(range=[0, 100]), height=300, title="MAS Weekly Trend (Placeholder)")
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("#### Category Breakdown")
+    for key, value in category_breakdown.items():
+        st.progress(int(value), text=f"{key}: {value}")
 # ========== PAGE 1: Nutrition Profile ==========
 if page == "Nutrition Profile":
     st.title("📋 Build Your Nutrition Profile")
