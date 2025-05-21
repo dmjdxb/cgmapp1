@@ -14,7 +14,8 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 
-
+st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
+import openai
 
 # --- Placeholder score (for UI only) ---
 mas_score = 76
@@ -69,8 +70,7 @@ def read_root():
     }
 
 
-st.set_page_config(page_title="NutriAI + CGM Planner", layout="wide")
-import openai
+
 
 # ✅ Verified GPT-4 client setup with working key
 client = openai.OpenAI(api_key="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")
