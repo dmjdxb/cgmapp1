@@ -55,18 +55,6 @@ page = st.sidebar.radio("Navigate", [
     "Glucose Trend Charts"
 ])
 
-# --- MAS Score & Breakdown ---
-mas_score = 76
-trend_data = [65, 68, 72, 74, 76]
-category_breakdown = {
-    "Glucose Stability": 80,
-    "HRV": 70,
-    "Sleep": 75,
-    "Macro Adherence": 78,
-    "Symptoms": 65
-}
-
-
 
 
         
@@ -154,35 +142,7 @@ if page == "Nutrition Profile":
 # ========== Other Pages Will Be Inserted Here ==========
 # (To keep file size manageable per cell, the rest will be continued)
 
-# ✅ The MAS tab content==== top of navagation bar===="
-elif page == "Metabolic Adaptation Score":
-    st.markdown("### 🧠 Metabolic Adaptation Score (MAS)")
 
-    score_color = "green" if mas_score >= 80 else "orange" if mas_score >= 60 else "red"
-    st.markdown(f"""
-    <div style='padding: 1rem; border-radius: 10px; background-color: {score_color}; color: white; text-align: center; font-size: 1.5rem;'>
-        Your MAS Score: <strong>{mas_score}</strong>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.info("This is your metabolic performance snapshot. Dynamic scoring will be available soon.")
-
-    # Placeholder Trend Graph
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=[f"Week {i+1}" for i in range(len(trend_data))],
-        y=trend_data,
-        mode='lines+markers',
-        line=dict(color='royalblue', width=3),
-        marker=dict(size=8)
-    ))
-    fig.update_layout(yaxis=dict(range=[0, 100]), height=300, title="MAS Weekly Trend")
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Category Breakdown
-    st.markdown("#### Category Breakdown")
-    for key, value in category_breakdown.items():
-        st.progress(int(value), text=f"{key}: {value}")
 
 # ========== PAGE 2: ChatGPT Meal Plan ==========
 elif page == "ChatGPT Meal Plan":
