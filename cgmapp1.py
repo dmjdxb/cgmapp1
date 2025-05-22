@@ -143,7 +143,7 @@ if page == "Nutrition Profile":
 
 
 # ========== PAGE 2: ChatGPT Meal Plan ==========
-elif page == "ChatGPT Meal Plan":
+elif page == "NutriAI Meal Plan":
     st.title("🥗 Generate a Sample Meal Plan Using NutriAI")
 
     with st.form("meal_form_chatgpt"):
