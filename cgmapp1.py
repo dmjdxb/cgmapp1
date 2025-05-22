@@ -1,5 +1,4 @@
-
-# ✅ Fully Merged NutriAI + CGM-WHOOP App with WHOOP API Integration (Fully Automated)
+# ✅ Fully Merged NutriAI + CGM-WHOOP App with OAuth Redirect Integration
 # -------------------------------------------------------
 
 import streamlit as st
@@ -14,17 +13,25 @@ from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
+from urllib.parse import urlparse, parse_qs
+# Set up OpenAI API key from secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = openai
 
+# WHOOP credentials from Streamlit secrets
+WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
+WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
+WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
 
-# Initialize session state
-if "response" not in st.session_state:
-    st.session_state.response = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "chat_file" not in st.session_state:
-    st.session_state.chat_file = None
-
-
+# WHOOP endpoints
+TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
+AUTH_URL = (
+    f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
+    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code&scope=read:recovery read:sleep read:strain"
+)
+RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
+SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
+STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
@@ -38,22 +45,15 @@ page = st.sidebar.radio("Navigate", [
     "Metabolic Adaptation Score"
 ])
 
-# WHOOP credentials from Streamlit secrets
-WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
-WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
-WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
-
-# WHOOP endpoints
-TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
-RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
-SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
-STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
-
-# Streamlit WHOOP authorization
+# WHOOP Login Button
 st.sidebar.subheader("Connect WHOOP")
-whoop_code = st.sidebar.text_input("Enter WHOOP Authorization Code")
+if "whoop_access_token" not in st.session_state:
+    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
 
-if whoop_code:
+# Parse WHOOP code from URL
+query_params = st.query_params
+if "code" in query_params and "whoop_access_token" not in st.session_state:
+    whoop_code = query_params["code"]
     token_payload = {
         "grant_type": "authorization_code",
         "code": whoop_code,
@@ -68,6 +68,25 @@ if whoop_code:
         st.success("✅ WHOOP connected successfully!")
     else:
         st.error("❌ Failed to authenticate with WHOOP.")
+
+# Automatically fetch and inject WHOOP data
+whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
+if "whoop_access_token" in st.session_state:
+    headers = {"Authorization": f"Bearer {st.session_state['whoop_access_token']}"}
+    start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers).json()
+        s = requests.get(f"{SLEEP_URL}?start={start_date}&end={end_date}", headers=headers).json()
+        t = requests.get(f"{STRAIN_URL}?start={start_date}&end={end_date}", headers=headers).json()
+
+        whoop_data["recovery"] = r["records"][0]["score"] if r["records"] else 65
+        whoop_data["sleep"] = round(s["records"][0]["hours"] if s["records"] else 7.5, 1)
+        whoop_data["strain"] = round(t["records"][0]["score"] if t["records"] else 12, 1)
+    except:
+        st.warning("⚠️ Using default WHOOP values due to fetch error.")
+
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
@@ -519,4 +538,5 @@ if page == "USDA Food Search":
         else:
             st.warning("No results found.")
         
+
 
