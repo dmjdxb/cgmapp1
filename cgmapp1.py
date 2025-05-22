@@ -44,13 +44,13 @@ if "chat_file" not in st.session_state:
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
-    "Metabolic Adaptation Score",
     "Nutrition Profile",
     "ChatGPT Meal Plan",
     "Glucose & Chat",
     "WHOOP + CGM Adjustments",
     "Insulin Resistance",
-    "Glucose Trend Charts"
+    "Glucose Trend Charts",
+    "Metabolic Adaptation Score"
 ])
 
 
