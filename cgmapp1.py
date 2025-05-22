@@ -16,6 +16,14 @@ from auth_fastapi_module import router
 import plotly.graph_objects as go
 
 
+# Initialize session state
+if "response" not in st.session_state:
+    st.session_state.response = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "chat_file" not in st.session_state:
+    st.session_state.chat_file = None
+
 
 
 # Sidebar Navigation
@@ -180,14 +188,6 @@ def read_root():
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
 
-
-# Initialize session state
-if "response" not in st.session_state:
-    st.session_state.response = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "chat_file" not in st.session_state:
-    st.session_state.chat_file = None
 
 
 
