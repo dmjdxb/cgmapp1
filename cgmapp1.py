@@ -1,4 +1,5 @@
-# ✅ Fully Merged NutriAI + CGM-WHOOP App
+
+# ✅ Fully Merged NutriAI + CGM-WHOOP App with WHOOP API Integration (Fully Automated)
 # -------------------------------------------------------
 
 import streamlit as st
@@ -8,12 +9,149 @@ import os
 import openai
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 
+# WHOOP credentials from Streamlit secrets
+WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
+WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
+WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
+
+# WHOOP endpoints
+TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
+RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
+SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
+STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
+
+# Streamlit WHOOP authorization
+st.sidebar.subheader("Connect WHOOP")
+whoop_code = st.sidebar.text_input("Enter WHOOP Authorization Code")
+
+if whoop_code:
+    token_payload = {
+        "grant_type": "authorization_code",
+        "code": whoop_code,
+        "client_id": WHOOP_CLIENT_ID,
+        "client_secret": WHOOP_CLIENT_SECRET,
+        "redirect_uri": WHOOP_REDIRECT_URI
+    }
+    token_response = requests.post(TOKEN_URL, data=token_payload)
+    if token_response.status_code == 200:
+        access_token = token_response.json().get("access_token")
+        st.session_state["whoop_access_token"] = access_token
+        st.success("✅ WHOOP connected successfully!")
+    else:
+        st.error("❌ Failed to authenticate with WHOOP.")
+
+# Automatically fetch and inject WHOOP data
+whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
+if "whoop_access_token" in st.session_state:
+    headers = {"Authorization": f"Bearer {st.session_state['whoop_access_token']}"}
+    start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers).json()
+        s = requests.get(f"{SLEEP_URL}?start={start_date}&end={end_date}", headers=headers).json()
+        t = requests.get(f"{STRAIN_URL}?start={start_date}&end={end_date}", headers=headers).json()
+
+        whoop_data["recovery"] = r["records"][0]["score"] if r["records"] else 65
+        whoop_data["sleep"] = round(s["records"][0]["hours"] if s["records"] else 7.5, 1)
+        whoop_data["strain"] = round(t["records"][0]["score"] if t["records"] else 12, 1)
+    except:
+        st.warning("⚠️ Using default WHOOP values due to fetch error.")
+
+# Inject WHOOP values into adaptive engine
+if page == "WHOOP + CGM Adjustments":
+    st.title("💪 WHOOP + CGM Adaptive Nutrition Engine")
+
+    strain = whoop_data["strain"]
+    recovery = whoop_data["recovery"]
+    sleep_hours = whoop_data["sleep"]
+    st.write(f"WHOOP Data Used — Strain: {strain}, Recovery: {recovery}, Sleep: {sleep_hours}h")
+
+    cgm_data = st.text_area("Enter CGM values (comma-separated)", "110,115,120,108,95")
+    cgm_values = [int(x.strip()) for x in cgm_data.split(",") if x.strip().isdigit()]
+
+    base_cals = st.session_state.get("calories", 2200)
+    base_prot = st.session_state.get("protein_g", 150)
+    base_carbs = st.session_state.get("carbs_g", 180)
+    base_fat = st.session_state.get("fat_g", 60)
+
+    def combined_adaptive_macros(glucose_data, strain, recovery, sleep, base_cals, base_prot, base_carbs, base_fat):
+        if not glucose_data:
+            return base_cals, base_prot, base_carbs, base_fat
+
+        avg_glucose = sum(glucose_data) / len(glucose_data)
+        variability = max(glucose_data) - min(glucose_data)
+
+        c_mult = 1.0
+        p_mult = 1.0
+        carb_mult = 1.0
+        fat_mult = 1.0
+
+        if avg_glucose > 125:
+            carb_mult *= 0.85
+            fat_mult *= 1.1
+        elif avg_glucose < 90:
+            carb_mult *= 1.1
+
+        if variability > 40:
+            c_mult *= 0.95
+            carb_mult *= 0.9
+
+        if strain > 16:
+            c_mult *= 1.10
+            carb_mult *= 1.15
+        elif strain < 8:
+            c_mult *= 0.95
+
+        if recovery < 40:
+            p_mult *= 1.05
+            c_mult *= 0.95
+
+        if sleep < 6:
+            fat_mult *= 1.1
+            carb_mult *= 0.9
+
+        new_cals = base_cals * c_mult
+        new_prot = base_prot * p_mult
+        new_carbs = base_carbs * carb_mult
+        new_fat = base_fat * fat_mult
+
+        return int(new_cals), int(new_prot), int(new_carbs), int(new_fat)
+
+    if cgm_values:
+        w_cals, w_protein, w_carbs, w_fat = combined_adaptive_macros(
+            cgm_values, strain, recovery, sleep_hours,
+            base_cals, base_prot, base_carbs, base_fat
+        )
+
+        st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
+        st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
+
+        if st.button("Generate WHOOP + CGM Meal Plan"):
+            prompt = (
+                f"Create a 1-day performance meal plan using {w_cals} kcal, "
+                f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
+                f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}. "
+                f"Glucose values: {cgm_values}. Adjust for blood sugar balance and performance."
+            )
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are a high-performance nutritionist."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                ai_combo_plan = response.choices[0].message.content
+                st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
+            except Exception as e:
+                st.error("Meal plan failed: " + str(e))
 
 
 # ✅ FastAPI (not used by Streamlit unless run externally)
@@ -26,12 +164,6 @@ def read_root():
         "status": "✅ FastAPI is running",
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
-
-
-
-# ✅ Verified GPT-4 client setup with working key
-client = openai.OpenAI(api_key="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")
-
 
 
 # Initialize session state
@@ -260,93 +392,6 @@ elif page == "Glucose & Chat":
             st.download_button("📥 Download Chat History", chat_json, file_name=os.path.basename(st.session_state.chat_file), mime="application/json")
 
 
-# ========== PAGE 4: WHOOP + CGM Adjustments ==========
-elif page == "WHOOP + CGM Adjustments":
-    st.title("💪 WHOOP + CGM Adaptive Nutrition Engine")
-
-    strain = st.slider("Yesterday's Strain (0–21)", 0, 21, 12)
-    recovery = st.slider("Recovery Score (0–100)", 0, 100, 65)
-    sleep_hours = st.slider("Sleep Duration (hrs)", 0.0, 12.0, 7.5, 0.5)
-
-    cgm_data = st.text_area("Enter CGM values (comma-separated)", "110,115,120,108,95")
-    cgm_values = [int(x.strip()) for x in cgm_data.split(",") if x.strip().isdigit()]
-
-    base_cals = st.session_state.get("calories", 2200)
-    base_prot = st.session_state.get("protein_g", 150)
-    base_carbs = st.session_state.get("carbs_g", 180)
-    base_fat = st.session_state.get("fat_g", 60)
-
-    def combined_adaptive_macros(glucose_data, strain, recovery, sleep, base_cals, base_prot, base_carbs, base_fat):
-        if not glucose_data:
-            return base_cals, base_prot, base_carbs, base_fat
-
-        avg_glucose = sum(glucose_data) / len(glucose_data)
-        variability = max(glucose_data) - min(glucose_data)
-
-        c_mult = 1.0
-        p_mult = 1.0
-        carb_mult = 1.0
-        fat_mult = 1.0
-
-        if avg_glucose > 125:
-            carb_mult *= 0.85
-            fat_mult *= 1.1
-        elif avg_glucose < 90:
-            carb_mult *= 1.1
-
-        if variability > 40:
-            c_mult *= 0.95
-            carb_mult *= 0.9
-
-        if strain > 16:
-            c_mult *= 1.10
-            carb_mult *= 1.15
-        elif strain < 8:
-            c_mult *= 0.95
-
-        if recovery < 40:
-            p_mult *= 1.05
-            c_mult *= 0.95
-
-        if sleep < 6:
-            fat_mult *= 1.1
-            carb_mult *= 0.9
-
-        new_cals = base_cals * c_mult
-        new_prot = base_prot * p_mult
-        new_carbs = base_carbs * carb_mult
-        new_fat = base_fat * fat_mult
-
-        return int(new_cals), int(new_prot), int(new_carbs), int(new_fat)
-
-    if cgm_values:
-        w_cals, w_protein, w_carbs, w_fat = combined_adaptive_macros(
-            cgm_values, strain, recovery, sleep_hours,
-            base_cals, base_prot, base_carbs, base_fat
-        )
-
-        st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
-        st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
-
-        if st.button("Generate WHOOP + CGM Meal Plan"):
-            prompt = (
-                f"Create a 1-day performance meal plan using {w_cals} kcal, "
-                f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
-                f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}. "
-                f"Glucose values: {cgm_values}. Adjust for blood sugar balance and performance."
-            )
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are a high-performance nutritionist."},
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                ai_combo_plan = response.choices[0].message.content
-                st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
-            except Exception as e:
-                st.error("Meal plan failed: " + str(e))
 
 # ========== PAGE 5: Insulin Resistance ==========
 elif page == "Insulin Resistance":
@@ -470,3 +515,4 @@ if page == "USDA Food Search":
         else:
             st.warning("No results found.")
         
+
