@@ -7,6 +7,15 @@ import json
 API_URL = os.getenv("API_URL", "https://cgmapp1.onrender.com")
 
  # Your FastAPI backend
+import json
+
+with open("serviceAccountKey.json") as f:
+    data = json.load(f)
+
+data["private_key"] = data["private_key"].replace("\n", "\\n")
+print("[FIREBASE_SERVICE_ACCOUNT]")
+for k, v in data.items():
+    print(f'{k} = "{v}"')
 
 # Session state to store the token
 if "auth_token" not in st.session_state:
