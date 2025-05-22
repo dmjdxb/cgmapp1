@@ -15,6 +15,21 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 
+
+
+
+# Sidebar Navigation
+page = st.sidebar.radio("Navigate", [
+    "Nutrition Profile",
+    "ChatGPT Meal Plan",
+    "USDA Food Search",
+    "Glucose & Chat",
+    "WHOOP + CGM Adjustments",
+    "Insulin Resistance",
+    "Glucose Trend Charts",
+    "Metabolic Adaptation Score"
+])
+
 # WHOOP credentials from Streamlit secrets
 WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
 WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
@@ -174,17 +189,6 @@ if "messages" not in st.session_state:
 if "chat_file" not in st.session_state:
     st.session_state.chat_file = None
 
-# Sidebar Navigation
-page = st.sidebar.radio("Navigate", [
-    "Nutrition Profile",
-    "ChatGPT Meal Plan",
-    "USDA Food Search",
-    "Glucose & Chat",
-    "WHOOP + CGM Adjustments",
-    "Insulin Resistance",
-    "Glucose Trend Charts",
-    "Metabolic Adaptation Score"
-])
 
 
 
