@@ -46,6 +46,7 @@ if "chat_file" not in st.session_state:
 page = st.sidebar.radio("Navigate", [
     "Nutrition Profile",
     "ChatGPT Meal Plan",
+    "USDA Food Search",
     "Glucose & Chat",
     "WHOOP + CGM Adjustments",
     "Insulin Resistance",
@@ -401,5 +402,71 @@ elif page == "Glucose Trend Charts":
         })
         fig = px.line(df, x="Day", y="Glucose", markers=True, title="Glucose Readings Over Time")
         st.plotly_chart(fig)
-        
+
+
+#===============USDA Food Search Function========================
+if page == "USDA Food Search":
+    st.title("🔍 Search Real Foods From USDA Database")
+    with st.form("usda_form"):
+        search_term = st.text_input("Type a food to look up:", value="chicken breast")
+        usda_search = st.form_submit_button("Search USDA Foods")
+
+    if 'usda_search' in locals() and usda_search:
+        # Placeholder USDA search function until implemented
+        results = search_usda_foods(search_term)
+        if results:
+            st.success(f"Top {len(results)} results for '{search_term}':")
+            for food in results:
+                st.write(f"**{food['description']}**")
+                nutrients = food.get("foodNutrients", [])
+                macros = {"Protein": None, "Carbohydrate, by difference": None, "Total lipid (fat)": None, "Energy": None}
+                for nutrient in nutrients:
+                    name = nutrient['nutrientName']
+                    if name in macros:
+                        macros[name] = f"{nutrient['value']} {nutrient['unitName']}"
+                st.write(f"- Calories: {macros['Energy']}")
+                st.write(f"- Protein: {macros['Protein']}")
+                st.write(f"- Carbs: {macros['Carbohydrate, by difference']}")
+                st.write(f"- Fat: {macros['Total lipid (fat)']}")
+
+                # Auto-match feedback
+                st.caption("📊 Matching this item to your current macros...")
+                if 'protein_g' in st.session_state and 'carbs_g' in st.session_state and 'fat_g' in st.session_state:
+                    def extract_numeric(val):
+                        try:
+                            return float(str(val).split()[0])
+                        except:
+                            return 0.0
+
+                    p_goal = st.session_state.protein_g
+                    c_goal = st.session_state.carbs_g
+                    f_goal = st.session_state.fat_g
+
+                    p_val = extract_numeric(macros['Protein'])
+                    c_val = extract_numeric(macros['Carbohydrate, by difference'])
+                    f_val = extract_numeric(macros['Total lipid (fat)'])
+
+                    match_score = 100 - (
+                        abs(p_val - (p_goal / 4)) / (p_goal / 4) * 33 +
+                        abs(c_val - (c_goal / 4)) / (c_goal / 4) * 33 +
+                        abs(f_val - (f_goal / 4)) / (f_goal / 4) * 33
+                    )
+                    match_score = max(0, min(100, round(match_score)))
+                    st.write(f"🧮 Match Score: {match_score}% to your current macro target (1 of 4 meals)")
+                save_key = f"save_{food['fdcId']}"
+                if st.button("💾 Save this to my daily plan", key=save_key):
+                    saved_meal = {
+                        "description": food['description'],
+                        "calories": macros['Energy'],
+                        "protein": macros['Protein'],
+                        "carbs": macros['Carbohydrate, by difference'],
+                        "fat": macros['Total lipid (fat)']
+                    }
+                    if "saved_meals" not in st.session_state:
+                        st.session_state.saved_meals = []
+                    st.session_state.saved_meals.append(saved_meal)
+                    st.success(f"✔️ Added {food['description']} to your daily plan.")
+                st.markdown("---")
+        else:
+            st.warning("No results found.")
         
