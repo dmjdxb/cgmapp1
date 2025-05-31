@@ -15,6 +15,9 @@ import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
 import secrets as py_secrets
 
+# Set page config
+st.set_page_config(page_title="WHOOP + CGM App", layout="wide")
+
 # Set up OpenAI API key from secrets
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -31,11 +34,15 @@ try:
     WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
 except KeyError as e:
     st.error(f"❌ Missing secret: {e}")
-    st.error("Please add WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET to your Streamlit secrets.")
     st.stop()
 
-# Check for OAuth callback FIRST - this must happen before any other logic
-if "code" in st.query_params and "whoop_access_token" not in st.session_state:
+# Initialize session state
+if "whoop_token_processing" not in st.session_state:
+    st.session_state.whoop_token_processing = False
+
+# Check for OAuth callback - NO RERUN
+if "code" in st.query_params and "whoop_access_token" not in st.session_state and not st.session_state.whoop_token_processing:
+    st.session_state.whoop_token_processing = True
     code = st.query_params["code"]
     
     # Exchange code for token
@@ -47,19 +54,16 @@ if "code" in st.query_params and "whoop_access_token" not in st.session_state:
         "client_secret": WHOOP_CLIENT_SECRET
     }
     
-    with st.spinner("Connecting to WHOOP..."):
-        response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
-        
-        if response.status_code == 200:
-            token_info = response.json()
-            st.session_state["whoop_access_token"] = token_info["access_token"]
-            # Remove code from URL to prevent reprocessing
-            del st.query_params["code"]
-            if "state" in st.query_params:
-                del st.query_params["state"]
-            st.rerun()
-        else:
-            st.error(f"Failed to authenticate: {response.text}")
+    response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
+    
+    if response.status_code == 200:
+        token_info = response.json()
+        st.session_state["whoop_access_token"] = token_info["access_token"]
+        st.success("✅ Successfully connected to WHOOP! Please refresh the page.")
+        st.stop()  # Stop execution here
+    else:
+        st.error(f"Failed to authenticate: {response.text}")
+        st.stop()
 
 # Generate state parameter for security
 if "oauth_state" not in st.session_state:
@@ -95,15 +99,9 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Use HTML button to ensure it opens in same tab
-    st.sidebar.markdown(
-        f'<a href="{AUTH_URL}" target="_self">'
-        f'<button style="background-color: #FF0000; color: white; '
-        f'padding: 8px 16px; border: none; border-radius: 4px; '
-        f'cursor: pointer; width: 100%; font-weight: bold;">'
-        f'🔗 Connect to WHOOP</button></a>',
-        unsafe_allow_html=True
-    )
+    # Try a simple link that opens in new tab
+    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})", unsafe_allow_html=True)
+    st.sidebar.caption("After connecting, refresh this page")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
