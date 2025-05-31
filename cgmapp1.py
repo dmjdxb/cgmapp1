@@ -12,7 +12,7 @@ from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
-from urllib.parse import urlparse, parse_qs, quote, urlencode
+from urllib.parse import urlparse, parse_qs
 import secrets as py_secrets
 
 # Debug info at the very top
@@ -79,13 +79,17 @@ if "code" in st.query_params:
             st.query_params.clear()
             st.rerun()
 
-# Build AUTH_URL WITHOUT state parameter to avoid issues
+# Use a fixed state parameter that meets WHOOP's requirements
+STATE_PARAM = "streamlit_whoop_auth_12345"  # At least 8 characters
+
+# Build AUTH_URL with a simple state parameter
 AUTH_URL = (
     f"https://api.prod.whoop.com/oauth/oauth2/auth?"
     f"client_id={WHOOP_CLIENT_ID}"
     f"&redirect_uri={WHOOP_REDIRECT_URI}"
     f"&response_type=code"
     f"&scope=read:recovery+read:cycles+read:sleep+read:workout+read:profile+read:body_measurement"
+    f"&state={STATE_PARAM}"
 )
 
 # Show the auth URL for debugging
@@ -114,8 +118,8 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Simple link approach
     st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
+    st.sidebar.caption("Click above to connect your WHOOP account")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
@@ -125,6 +129,7 @@ else:
 # Show session state for debugging
 st.write("🔍 Session state:", list(st.session_state.keys()))
 
+# Rest of your app code...
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
 
@@ -161,8 +166,6 @@ if "whoop_access_token" in st.session_state:
                 
     except Exception as e:
         st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
-
-    # ... rest of your page implementation
 
 # Page content based on selection
 if page == "WHOOP + CGM Adjustments":
