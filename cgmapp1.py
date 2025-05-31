@@ -14,9 +14,15 @@ from auth_fastapi_module import router
 import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
 
+
 # Set up OpenAI API key from secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-client = openai
+try:
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
+    client = openai
+except KeyError:
+    st.warning("⚠️ OpenAI API key not found. Some features may be limited.")
+    openai.api_key = None
+    client = None
 
 # Load WHOOP secrets FIRST (before using them)
 try:
