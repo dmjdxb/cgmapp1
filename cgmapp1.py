@@ -12,7 +12,7 @@ from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote, urlencode
 import secrets as py_secrets
 
 # Debug info at the very top
@@ -83,13 +83,16 @@ if "code" in st.query_params:
 if "oauth_state" not in st.session_state:
     st.session_state.oauth_state = py_secrets.token_urlsafe(16)
 
-# Build AUTH_URL
-AUTH_URL = (
-    f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
-    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code"
-    f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
-    f"&state={st.session_state.oauth_state}"
-)
+# Build AUTH_URL with proper URL encoding
+auth_params = {
+    "client_id": WHOOP_CLIENT_ID,
+    "redirect_uri": WHOOP_REDIRECT_URI,
+    "response_type": "code",
+    "scope": "read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement",
+    "state": st.session_state.oauth_state
+}
+
+AUTH_URL = f"https://api.prod.whoop.com/oauth/oauth2/auth?{urlencode(auth_params)}"
 
 # Show the auth URL for debugging
 st.write("🔍 Auth URL being used:")
@@ -117,8 +120,15 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
-    st.sidebar.caption("After authorizing, you'll be redirected back here")
+    # Use a button with proper HTML encoding
+    st.sidebar.markdown(
+        f'<a href="{AUTH_URL}" style="text-decoration: none;">'
+        f'<button style="background-color: #FF0000; color: white; '
+        f'padding: 8px 16px; border: none; border-radius: 4px; '
+        f'cursor: pointer; width: 100%; font-weight: bold;">'
+        f'🔗 Connect to WHOOP</button></a>',
+        unsafe_allow_html=True
+    )
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
@@ -127,6 +137,7 @@ else:
 
 # Show session state for debugging
 st.write("🔍 Session state:", list(st.session_state.keys()))
+
 
 # Rest of your app code...
 
