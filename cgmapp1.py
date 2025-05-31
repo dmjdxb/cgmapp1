@@ -19,7 +19,6 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 client = openai
 
 # WHOOP credentials from Streamlit secrets
-import streamlit as st
 
 # Debug section - remove this after fixing
 st.write("Debug: Checking secrets...")
