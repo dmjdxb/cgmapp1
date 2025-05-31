@@ -19,9 +19,32 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 client = openai
 
 # WHOOP credentials from Streamlit secrets
-WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
-WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
+import streamlit as st
+
+# Debug section - remove this after fixing
+st.write("Debug: Checking secrets...")
+try:
+    st.write("Available secret keys:", list(st.secrets.keys()))
+except Exception as e:
+    st.write(f"Error accessing secrets: {e}")
+
+# Try to access secrets with error handling
+try:
+    WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
+    st.success("✓ WHOOP_CLIENT_ID loaded successfully")
+except KeyError:
+    st.error("❌ WHOOP_CLIENT_ID not found in secrets")
+    WHOOP_CLIENT_ID = None
+
+try:
+    WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
+    st.success("✓ WHOOP_CLIENT_SECRET loaded successfully")
+except KeyError:
+    st.error("❌ WHOOP_CLIENT_SECRET not found in secrets")
+    WHOOP_CLIENT_SECRET = None
+
 WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
+
 
 # WHOOP endpoints
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
