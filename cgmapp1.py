@@ -26,7 +26,7 @@ try:
     # Attempt to load secrets
     WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
     WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
-    WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
+    WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/callback"
 except KeyError as e:
     # Show error in the app
     st.error(f"❌ Missing secret: {e}")
