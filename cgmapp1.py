@@ -68,7 +68,7 @@ st.write("🔍 DEBUG - Session state keys:", list(st.session_state.keys()))
 
 # NOW handle OAuth callback (after all variables are defined)
 query_params = st.query_params
-if "code" in query_params:
+if "code" in query_params and "whoop_access_token" not in st.session_state:
     # Verify state parameter for security
     returned_state = query_params.get("state", "")
     
@@ -79,8 +79,6 @@ if "code" in query_params:
     st.info("Processing WHOOP authentication...")
     auth_code = query_params["code"]
     st.write(f"🔍 DEBUG - Got auth code: {auth_code[:10]}...")  # Show first 10 chars
-    
-
     
     # Exchange code for token
     token_data = {
@@ -102,9 +100,7 @@ if "code" in query_params:
             st.write("🔍 DEBUG - Token received successfully!")
             st.session_state["whoop_access_token"] = token_info["access_token"]
             st.success("✅ Successfully connected to WHOOP!")
-            # Clear the URL parameters
-            st.query_params.clear()
-            st.rerun()
+            # Don't clear query params and rerun - just let the page continue
         else:
             st.error(f"Failed to get token: {response.text}")
             st.write("🔍 DEBUG - Full error response:", response.json() if response.text else "No response body")
@@ -112,7 +108,8 @@ if "code" in query_params:
         st.error(f"Error during authentication: {str(e)}")
         st.write(f"🔍 DEBUG - Exception type: {type(e).__name__}")
         st.write(f"🔍 DEBUG - Exception details: {str(e)}")
-
+    
+   
 # REST OF YOUR APP CODE CONTINUES HERE...
 
 # Sidebar Navigation
