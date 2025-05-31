@@ -15,8 +15,8 @@ import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
 import secrets as py_secrets
 
-# Set page config
-st.set_page_config(page_title="WHOOP + CGM App", layout="wide")
+# Debug info at the very top
+st.write("🔍 DEBUG - Current URL:", st.query_params)
 
 # Set up OpenAI API key from secrets
 try:
@@ -36,34 +36,48 @@ except KeyError as e:
     st.error(f"❌ Missing secret: {e}")
     st.stop()
 
-# Initialize session state
-if "whoop_token_processing" not in st.session_state:
-    st.session_state.whoop_token_processing = False
-
-# Check for OAuth callback - NO RERUN
-if "code" in st.query_params and "whoop_access_token" not in st.session_state and not st.session_state.whoop_token_processing:
-    st.session_state.whoop_token_processing = True
-    code = st.query_params["code"]
+# Check if we have a code in the URL
+if "code" in st.query_params:
+    st.info("🔍 OAuth code detected in URL!")
     
-    # Exchange code for token
-    token_data = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": WHOOP_REDIRECT_URI,
-        "client_id": WHOOP_CLIENT_ID,
-        "client_secret": WHOOP_CLIENT_SECRET
-    }
-    
-    response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
-    
-    if response.status_code == 200:
-        token_info = response.json()
-        st.session_state["whoop_access_token"] = token_info["access_token"]
-        st.success("✅ Successfully connected to WHOOP! Please refresh the page.")
-        st.stop()  # Stop execution here
+    # Only process if we don't already have a token
+    if "whoop_access_token" not in st.session_state:
+        code = st.query_params["code"]
+        st.write(f"🔍 Processing code: {code[:10]}...")
+        
+        # Exchange code for token
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": WHOOP_REDIRECT_URI,
+            "client_id": WHOOP_CLIENT_ID,
+            "client_secret": WHOOP_CLIENT_SECRET
+        }
+        
+        try:
+            response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
+            st.write(f"🔍 Token response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                st.session_state["whoop_access_token"] = token_info["access_token"]
+                st.success("✅ Successfully connected to WHOOP!")
+                st.balloons()
+                
+                # Show manual refresh button
+                if st.button("Click here to continue"):
+                    st.query_params.clear()
+                    st.rerun()
+            else:
+                st.error(f"Failed to authenticate: {response.text}")
+                st.json(response.json() if response.text else {})
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
     else:
-        st.error(f"Failed to authenticate: {response.text}")
-        st.stop()
+        st.info("Already authenticated with WHOOP")
+        if st.button("Clear URL and continue"):
+            st.query_params.clear()
+            st.rerun()
 
 # Generate state parameter for security
 if "oauth_state" not in st.session_state:
@@ -76,6 +90,10 @@ AUTH_URL = (
     f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
     f"&state={st.session_state.oauth_state}"
 )
+
+# Show the auth URL for debugging
+st.write("🔍 Auth URL being used:")
+st.code(AUTH_URL)
 
 # WHOOP API endpoints
 RECOVERY_URL = "https://api.prod.whoop.com/developer/v1/recovery"
@@ -99,14 +117,18 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Try a simple link that opens in new tab
-    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})", unsafe_allow_html=True)
-    st.sidebar.caption("After connecting, refresh this page")
+    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
+    st.sidebar.caption("After authorizing, you'll be redirected back here")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
         del st.session_state["whoop_access_token"]
         st.rerun()
+
+# Show session state for debugging
+st.write("🔍 Session state:", list(st.session_state.keys()))
+
+# Rest of your app code...
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
