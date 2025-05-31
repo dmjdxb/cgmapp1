@@ -53,7 +53,7 @@ AUTH_URL = (
 )
 RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
 SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
-STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
+CYCLES_URL = "https://api.prod.whoop.com/developer/v1/cycle"  # Use this instead of STRAIN_URL
 
 # ADD DEBUG INFO HERE
 st.write("🔍 DEBUG - Current URL parameters:", dict(st.query_params))
