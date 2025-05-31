@@ -12,7 +12,7 @@ from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 import secrets as py_secrets
 
 # Debug info at the very top
@@ -34,6 +34,13 @@ try:
     WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
 except KeyError as e:
     st.error(f"❌ Missing secret: {e}")
+    st.stop()
+
+# Check if we have an error in the URL (from WHOOP)
+if "error" in st.query_params:
+    st.error("WHOOP OAuth Error:")
+    for key, value in st.query_params.items():
+        st.write(f"- {key}: {value}")
     st.stop()
 
 # Check if we have a code in the URL
@@ -79,22 +86,40 @@ if "code" in st.query_params:
             st.query_params.clear()
             st.rerun()
 
-# Use a fixed state parameter that meets WHOOP's requirements
-STATE_PARAM = "streamlit_whoop_auth_12345"  # At least 8 characters
+# Build AUTH_URL - try different approach
+base_url = "https://api.prod.whoop.com/oauth/oauth2/auth"
+params = {
+    "client_id": WHOOP_CLIENT_ID,
+    "redirect_uri": WHOOP_REDIRECT_URI,
+    "response_type": "code",
+    "scope": "read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement",
+    "state": "whoop_auth_state_123456789"  # Long state parameter
+}
 
-# Build AUTH_URL with a simple state parameter
-AUTH_URL = (
-    f"https://api.prod.whoop.com/oauth/oauth2/auth?"
-    f"client_id={WHOOP_CLIENT_ID}"
-    f"&redirect_uri={WHOOP_REDIRECT_URI}"
-    f"&response_type=code"
-    f"&scope=read:recovery+read:cycles+read:sleep+read:workout+read:profile+read:body_measurement"
-    f"&state={STATE_PARAM}"
-)
+# Build URL manually with proper encoding
+AUTH_URL = f"{base_url}?"
+AUTH_URL += f"client_id={params['client_id']}"
+AUTH_URL += f"&redirect_uri={quote(params['redirect_uri'], safe='')}"
+AUTH_URL += f"&response_type={params['response_type']}"
+AUTH_URL += f"&scope={quote(params['scope'], safe='')}"
+AUTH_URL += f"&state={params['state']}"
 
 # Show the auth URL for debugging
 st.write("🔍 Auth URL being used:")
 st.code(AUTH_URL)
+
+# Alternative: Try without URL encoding
+SIMPLE_AUTH_URL = (
+    "https://api.prod.whoop.com/oauth/oauth2/auth"
+    "?client_id=" + WHOOP_CLIENT_ID +
+    "&redirect_uri=" + WHOOP_REDIRECT_URI +
+    "&response_type=code" +
+    "&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement" +
+    "&state=whoop_auth_state_123456789"
+)
+
+st.write("🔍 Simple Auth URL:")
+st.code(SIMPLE_AUTH_URL)
 
 # WHOOP API endpoints
 RECOVERY_URL = "https://api.prod.whoop.com/developer/v1/recovery"
@@ -118,8 +143,10 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
-    st.sidebar.caption("Click above to connect your WHOOP account")
+    st.sidebar.markdown("Try both links:")
+    st.sidebar.markdown(f"1. [🔗 Encoded URL]({AUTH_URL})")
+    st.sidebar.markdown(f"2. [🔗 Simple URL]({SIMPLE_AUTH_URL})")
+    st.sidebar.caption("One of these should work with WHOOP")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
@@ -128,6 +155,8 @@ else:
 
 # Show session state for debugging
 st.write("🔍 Session state:", list(st.session_state.keys()))
+
+# Rest of your app implementation...
 
 # Rest of your app code...
 # Automatically fetch and inject WHOOP data
