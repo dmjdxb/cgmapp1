@@ -20,7 +20,6 @@ client = openai
 
 # WHOOP credentials from Streamlit secrets
 
-import streamlit as st
 
 # Move secret loading into a function or use try-except at module level
 try:
