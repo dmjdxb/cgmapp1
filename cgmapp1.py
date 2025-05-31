@@ -35,28 +35,29 @@ except KeyError as e:
     st.stop()
 
 # Check for OAuth callback FIRST - this must happen before any other logic
-if "code" in st.experimental_get_query_params():
-    params = st.experimental_get_query_params()
-    code = params["code"][0]
+if "code" in st.query_params and "whoop_access_token" not in st.session_state:
+    code = st.query_params["code"]
     
-    if "whoop_access_token" not in st.session_state:
-        # Exchange code for token
-        token_data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": WHOOP_REDIRECT_URI,
-            "client_id": WHOOP_CLIENT_ID,
-            "client_secret": WHOOP_CLIENT_SECRET
-        }
-        
+    # Exchange code for token
+    token_data = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": WHOOP_REDIRECT_URI,
+        "client_id": WHOOP_CLIENT_ID,
+        "client_secret": WHOOP_CLIENT_SECRET
+    }
+    
+    with st.spinner("Connecting to WHOOP..."):
         response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
         
         if response.status_code == 200:
             token_info = response.json()
             st.session_state["whoop_access_token"] = token_info["access_token"]
-            # Clear the query params and rerun
-            st.experimental_set_query_params()
-            st.experimental_rerun()
+            # Remove code from URL to prevent reprocessing
+            del st.query_params["code"]
+            if "state" in st.query_params:
+                del st.query_params["state"]
+            st.rerun()
         else:
             st.error(f"Failed to authenticate: {response.text}")
 
@@ -94,13 +95,20 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Simple markdown link
-    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
+    # Use HTML button to ensure it opens in same tab
+    st.sidebar.markdown(
+        f'<a href="{AUTH_URL}" target="_self">'
+        f'<button style="background-color: #FF0000; color: white; '
+        f'padding: 8px 16px; border: none; border-radius: 4px; '
+        f'cursor: pointer; width: 100%; font-weight: bold;">'
+        f'🔗 Connect to WHOOP</button></a>',
+        unsafe_allow_html=True
+    )
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
         del st.session_state["whoop_access_token"]
-        st.experimental_rerun()
+        st.rerun()
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
@@ -241,10 +249,6 @@ def read_root():
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
 
-
-
-
-        
 # ========== PAGE 1: Nutrition Profile ==========
 if page == "Nutrition Profile":
     st.title("📋 Build Your Nutrition Profile")
