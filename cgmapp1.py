@@ -142,25 +142,6 @@ if "whoop_access_token" in st.session_state:
     end_date = datetime.now().strftime("%Y-%m-%d")
 
     try:
-        r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers).json()
-        s = requests.get(f"{SLEEP_URL}?start={start_date}&end={end_date}", headers=headers).json()
-        # Use CYCLES_URL instead of STRAIN_URL
-        c = requests.get(f"{CYCLES_URL}?start={start_date}&end={end_date}", headers=headers).json()
-
-        whoop_data["recovery"] = r["records"][0]["score"]["recovery_score"] if r.get("records") else 65
-        whoop_data["sleep"] = round(s["records"][0]["score"]["total_in_bed_hours"] if s.get("records") else 7.5, 1)
-        whoop_data["strain"] = round(c["records"][0]["score"]["strain"] if c.get("records") else 12, 1)
-    except Exception as e:
-        st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
-
-# Automatically fetch and inject WHOOP data (ONLY ONCE - delete the duplicate)
-whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
-if "whoop_access_token" in st.session_state:
-    headers = {"Authorization": f"Bearer {st.session_state['whoop_access_token']}"}
-    start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    end_date = datetime.now().strftime("%Y-%m-%d")
-
-    try:
         # Fetch recovery data
         r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers)
         if r.status_code == 200:
@@ -184,7 +165,7 @@ if "whoop_access_token" in st.session_state:
                 
     except Exception as e:
         st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
-
+        
 # Inject WHOOP values into adaptive engine
 if page == "WHOOP + CGM Adjustments":
     st.title("💪 WHOOP + CGM Adaptive Nutrition Engine")
