@@ -66,10 +66,26 @@ page = st.sidebar.radio("Navigate", [
     "Metabolic Adaptation Score"
 ])
 
-# WHOOP Login Button
+# WHOOP Login Section
+st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
+
 if "whoop_access_token" not in st.session_state:
-    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
+    # Use HTML button for better OAuth flow (stays in same tab)
+    st.sidebar.markdown(
+        f'<a href="{AUTH_URL}" target="_self" style="text-decoration: none;">'
+        f'<button style="width: 100%; background-color: #FF0000; color: white; '
+        f'padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; '
+        f'font-size: 14px; font-weight: bold;">'
+        f'🔗 Connect to WHOOP</button></a>', 
+        unsafe_allow_html=True
+    )
+else:
+    st.sidebar.success("✅ WHOOP Connected")
+    if st.sidebar.button("Disconnect WHOOP"):
+        del st.session_state["whoop_access_token"]
+        st.rerun()
+        
 
 # Parse WHOOP code from URL
 query_params = st.query_params
