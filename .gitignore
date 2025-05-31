@@ -1,6 +1,9 @@
 # 🔒 Do not commit Firebase private key
 firebase_credentials.json
 
+# Streamlit Secrets
+.streamlit/secrets.toml
+
 # 🧪 Ignore Python cache and compiled files
 __pycache__/
 *.py[cod]
