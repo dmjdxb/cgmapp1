@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
+import secrets as py_secrets  # Add this with your other imports
 
 # Set up OpenAI API key from secrets
 try:
@@ -45,12 +46,17 @@ except KeyError as e:
     # Stop the app execution
     st.stop()
 
+# Generate a secure state parameter
+if "oauth_state" not in st.session_state:
+    st.session_state.oauth_state = py_secrets.token_urlsafe(16)
+
 # WHOOP endpoints (define these BEFORE using them)
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
 AUTH_URL = (
     f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
     f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code"
     f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
+    f"&state={st.session_state.oauth_state}"  # Add state parameter
 )
 RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
 SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
@@ -63,9 +69,18 @@ st.write("🔍 DEBUG - Session state keys:", list(st.session_state.keys()))
 # NOW handle OAuth callback (after all variables are defined)
 query_params = st.query_params
 if "code" in query_params:
+    # Verify state parameter for security
+    returned_state = query_params.get("state", "")
+    
+    if returned_state != st.session_state.get("oauth_state", ""):
+        st.error("❌ Invalid state parameter. Please try connecting again.")
+        st.stop()
+    
     st.info("Processing WHOOP authentication...")
     auth_code = query_params["code"]
     st.write(f"🔍 DEBUG - Got auth code: {auth_code[:10]}...")  # Show first 10 chars
+    
+
     
     # Exchange code for token
     token_data = {
