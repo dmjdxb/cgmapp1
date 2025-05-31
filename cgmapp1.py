@@ -63,6 +63,9 @@ AUTH_URL = (
     f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
     f"&state={st.session_state.oauth_state}"  # Add state parameter
 )
+# Debug: Show the full auth URL
+st.write("🔍 DEBUG - Full AUTH_URL:")
+st.code(AUTH_URL)
 RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
 SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
 CYCLES_URL = "https://api.prod.whoop.com/developer/v1/cycle"  # Use this instead of STRAIN_URL
