@@ -14,7 +14,6 @@ from auth_fastapi_module import router
 import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
 
-
 # Set up OpenAI API key from secrets
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -56,11 +55,16 @@ RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
 SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
 STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
 
+# ADD DEBUG INFO HERE
+st.write("🔍 DEBUG - Current URL parameters:", dict(st.query_params))
+st.write("🔍 DEBUG - Session state keys:", list(st.session_state.keys()))
+
 # NOW handle OAuth callback (after all variables are defined)
 query_params = st.query_params
 if "code" in query_params:
     st.info("Processing WHOOP authentication...")
     auth_code = query_params["code"]
+    st.write(f"🔍 DEBUG - Got auth code: {auth_code[:10]}...")  # Show first 10 chars
     
     # Exchange code for token
     token_data = {
@@ -71,10 +75,15 @@ if "code" in query_params:
         "client_secret": WHOOP_CLIENT_SECRET
     }
     
+    st.write("🔍 DEBUG - Sending token request...")
+    
     try:
         response = requests.post(TOKEN_URL, data=token_data)
+        st.write(f"🔍 DEBUG - Response status: {response.status_code}")
+        
         if response.status_code == 200:
             token_info = response.json()
+            st.write("🔍 DEBUG - Token received successfully!")
             st.session_state["whoop_access_token"] = token_info["access_token"]
             st.success("✅ Successfully connected to WHOOP!")
             # Clear the URL parameters
@@ -82,10 +91,13 @@ if "code" in query_params:
             st.rerun()
         else:
             st.error(f"Failed to get token: {response.text}")
+            st.write("🔍 DEBUG - Full error response:", response.json() if response.text else "No response body")
     except Exception as e:
         st.error(f"Error during authentication: {str(e)}")
+        st.write(f"🔍 DEBUG - Exception type: {type(e).__name__}")
+        st.write(f"🔍 DEBUG - Exception details: {str(e)}")
 
-# Rest of your app code continues here...
+# REST OF YOUR APP CODE CONTINUES HERE...
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
