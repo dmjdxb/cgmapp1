@@ -49,7 +49,8 @@ except KeyError as e:
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
 AUTH_URL = (
     f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
-    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code&scope=read:recovery read:sleep read:strain"
+    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code"
+    f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
 )
 RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
 SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
