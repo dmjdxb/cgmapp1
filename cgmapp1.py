@@ -1,4 +1,4 @@
-# ✅ Fully Merged NutriAI + CGM-WHOOP App with OAuth Redirect Integration
+# ✅ WHOOP Manual OAuth Integration for Streamlit
 # -------------------------------------------------------
 import streamlit as st
 import requests
@@ -12,11 +12,8 @@ from io import StringIO
 from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
-from urllib.parse import urlparse, parse_qs, quote
+from urllib.parse import urlparse, parse_qs
 import secrets as py_secrets
-
-# Debug info at the very top
-st.write("🔍 DEBUG - Current URL:", st.query_params)
 
 # Set up OpenAI API key from secrets
 try:
@@ -35,91 +32,6 @@ try:
 except KeyError as e:
     st.error(f"❌ Missing secret: {e}")
     st.stop()
-
-# Check if we have an error in the URL (from WHOOP)
-if "error" in st.query_params:
-    st.error("WHOOP OAuth Error:")
-    for key, value in st.query_params.items():
-        st.write(f"- {key}: {value}")
-    st.stop()
-
-# Check if we have a code in the URL
-if "code" in st.query_params:
-    st.info("🔍 OAuth code detected in URL!")
-    
-    # Only process if we don't already have a token
-    if "whoop_access_token" not in st.session_state:
-        code = st.query_params["code"]
-        st.write(f"🔍 Processing code: {code[:10]}...")
-        
-        # Exchange code for token
-        token_data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": WHOOP_REDIRECT_URI,
-            "client_id": WHOOP_CLIENT_ID,
-            "client_secret": WHOOP_CLIENT_SECRET
-        }
-        
-        try:
-            response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
-            st.write(f"🔍 Token response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                token_info = response.json()
-                st.session_state["whoop_access_token"] = token_info["access_token"]
-                st.success("✅ Successfully connected to WHOOP!")
-                st.balloons()
-                
-                # Show manual refresh button
-                if st.button("Click here to continue"):
-                    st.query_params.clear()
-                    st.rerun()
-            else:
-                st.error(f"Failed to authenticate: {response.text}")
-                st.json(response.json() if response.text else {})
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-    else:
-        st.info("Already authenticated with WHOOP")
-        if st.button("Clear URL and continue"):
-            st.query_params.clear()
-            st.rerun()
-
-# Build AUTH_URL - try different approach
-base_url = "https://api.prod.whoop.com/oauth/oauth2/auth"
-params = {
-    "client_id": WHOOP_CLIENT_ID,
-    "redirect_uri": WHOOP_REDIRECT_URI,
-    "response_type": "code",
-    "scope": "read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement",
-    "state": "whoop_auth_state_123456789"  # Long state parameter
-}
-
-# Build URL manually with proper encoding
-AUTH_URL = f"{base_url}?"
-AUTH_URL += f"client_id={params['client_id']}"
-AUTH_URL += f"&redirect_uri={quote(params['redirect_uri'], safe='')}"
-AUTH_URL += f"&response_type={params['response_type']}"
-AUTH_URL += f"&scope={quote(params['scope'], safe='')}"
-AUTH_URL += f"&state={params['state']}"
-
-# Show the auth URL for debugging
-st.write("🔍 Auth URL being used:")
-st.code(AUTH_URL)
-
-# Alternative: Try without URL encoding
-SIMPLE_AUTH_URL = (
-    "https://api.prod.whoop.com/oauth/oauth2/auth"
-    "?client_id=" + WHOOP_CLIENT_ID +
-    "&redirect_uri=" + WHOOP_REDIRECT_URI +
-    "&response_type=code" +
-    "&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement" +
-    "&state=whoop_auth_state_123456789"
-)
-
-st.write("🔍 Simple Auth URL:")
-st.code(SIMPLE_AUTH_URL)
 
 # WHOOP API endpoints
 RECOVERY_URL = "https://api.prod.whoop.com/developer/v1/recovery"
@@ -143,22 +55,64 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    st.sidebar.markdown("Try both links:")
-    st.sidebar.markdown(f"1. [🔗 Encoded URL]({AUTH_URL})")
-    st.sidebar.markdown(f"2. [🔗 Simple URL]({SIMPLE_AUTH_URL})")
-    st.sidebar.caption("One of these should work with WHOOP")
+    with st.sidebar.expander("Connect WHOOP Account", expanded=True):
+        st.markdown("### Step 1: Authorize")
+        
+        # Create auth URL with a simple state
+        auth_url = (
+            f"https://api.prod.whoop.com/oauth/oauth2/auth?"
+            f"client_id={WHOOP_CLIENT_ID}"
+            f"&redirect_uri={WHOOP_REDIRECT_URI}"
+            f"&response_type=code"
+            f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
+            f"&state=streamlit123456"
+        )
+        
+        st.markdown(f"[🔗 Click here to authorize WHOOP]({auth_url})")
+        
+        st.markdown("### Step 2: Copy the code")
+        st.markdown("After authorizing, you'll see an error page. **This is normal!**")
+        st.markdown("Look at the URL bar - it will contain `?code=XXXXX`")
+        st.markdown("Copy everything after `code=` and before any `&`")
+        
+        st.markdown("### Step 3: Paste the code")
+        auth_code = st.text_input("Authorization Code", placeholder="Paste code here")
+        
+        if st.button("Connect", type="primary"):
+            if auth_code:
+                with st.spinner("Connecting to WHOOP..."):
+                    # Exchange code for token
+                    token_data = {
+                        "grant_type": "authorization_code",
+                        "code": auth_code.strip(),
+                        "redirect_uri": WHOOP_REDIRECT_URI,
+                        "client_id": WHOOP_CLIENT_ID,
+                        "client_secret": WHOOP_CLIENT_SECRET
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            "https://api.prod.whoop.com/oauth/oauth2/token", 
+                            data=token_data
+                        )
+                        
+                        if response.status_code == 200:
+                            token_info = response.json()
+                            st.session_state["whoop_access_token"] = token_info["access_token"]
+                            st.success("✅ Successfully connected!")
+                            st.rerun()
+                        else:
+                            st.error(f"Connection failed: {response.text}")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+            else:
+                st.error("Please enter the authorization code")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
         del st.session_state["whoop_access_token"]
         st.rerun()
 
-# Show session state for debugging
-st.write("🔍 Session state:", list(st.session_state.keys()))
-
-# Rest of your app implementation...
-
-# Rest of your app code...
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
 
@@ -177,10 +131,12 @@ if "whoop_access_token" in st.session_state:
         )
         if cycle_response.status_code == 200:
             cycles = cycle_response.json()
-            if cycles:
+            if cycles and len(cycles) > 0:
                 latest_cycle = cycles[0]
-                whoop_data["strain"] = round(latest_cycle.get("strain", {}).get("score", 12), 1)
-                whoop_data["recovery"] = latest_cycle.get("recovery", {}).get("score", 65)
+                if "strain" in latest_cycle and "score" in latest_cycle["strain"]:
+                    whoop_data["strain"] = round(latest_cycle["strain"]["score"], 1)
+                if "recovery" in latest_cycle and "score" in latest_cycle["recovery"]:
+                    whoop_data["recovery"] = latest_cycle["recovery"]["score"]
         
         # Fetch sleep data
         sleep_response = requests.get(
@@ -189,9 +145,9 @@ if "whoop_access_token" in st.session_state:
         )
         if sleep_response.status_code == 200:
             sleep_data = sleep_response.json()
-            if sleep_data:
-                total_sleep_minutes = sum(s.get("duration_in_millis", 0) for s in sleep_data) / 1000 / 60
-                whoop_data["sleep"] = round(total_sleep_minutes / 60, 1)  # Convert to hours
+            if sleep_data and len(sleep_data) > 0:
+                total_sleep_ms = sum(s.get("duration_millis", 0) for s in sleep_data)
+                whoop_data["sleep"] = round(total_sleep_ms / 1000 / 60 / 60, 1)  # Convert to hours
                 
     except Exception as e:
         st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
@@ -284,6 +240,8 @@ if page == "WHOOP + CGM Adjustments":
                 st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
             except Exception as e:
                 st.error(f"Meal plan generation failed: {str(e)}")
+
+# Add your other page implementations here...
 
 # Add other page implementations here...
 
