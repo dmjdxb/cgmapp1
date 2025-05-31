@@ -1,6 +1,5 @@
 # ✅ Fully Merged NutriAI + CGM-WHOOP App with OAuth Redirect Integration
 # -------------------------------------------------------
-
 import streamlit as st
 import requests
 import json
@@ -14,12 +13,44 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
+
 # Set up OpenAI API key from secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 client = openai
 
+# Load WHOOP secrets FIRST (before using them)
+try:
+    # Attempt to load secrets
+    WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
+    WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
+    WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/callback"
+except KeyError as e:
+    # Show error in the app
+    st.error(f"❌ Missing secret: {e}")
+    st.error("Please add WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET to your Streamlit secrets.")
+    
+    # Show available secrets (be careful with this in production!)
+    st.write("Available secrets:", list(st.secrets.keys()) if hasattr(st, 'secrets') else "No secrets found")
+    
+    # Set None values to prevent further errors
+    WHOOP_CLIENT_ID = None
+    WHOOP_CLIENT_SECRET = None
+    WHOOP_REDIRECT_URI = None
+    
+    # Stop the app execution
+    st.stop()
 
-# Handle OAuth callback
+# WHOOP endpoints (define these BEFORE using them)
+TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
+AUTH_URL = (
+    f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
+    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code&scope=read:recovery read:sleep read:strain"
+)
+RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
+SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
+STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
+
+# NOW handle OAuth callback (after all variables are defined)
 query_params = st.query_params
 if "code" in query_params:
     st.info("Processing WHOOP authentication...")
@@ -48,38 +79,7 @@ if "code" in query_params:
     except Exception as e:
         st.error(f"Error during authentication: {str(e)}")
 
-# Move secret loading into a function or use try-except at module level
-try:
-    # Attempt to load secrets
-    WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
-    WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
-    WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/callback"
-except KeyError as e:
-    # Show error in the app
-    st.error(f"❌ Missing secret: {e}")
-    st.error("Please add WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET to your Streamlit secrets.")
-    
-    # Show available secrets (be careful with this in production!)
-    st.write("Available secrets:", list(st.secrets.keys()) if hasattr(st, 'secrets') else "No secrets found")
-    
-    # Set None values to prevent further errors
-    WHOOP_CLIENT_ID = None
-    WHOOP_CLIENT_SECRET = None
-    WHOOP_REDIRECT_URI = None
-    
-    # Stop the app execution
-    st.stop()
-
-
-# WHOOP endpoints
-TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
-AUTH_URL = (
-    f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
-    f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code&scope=read:recovery read:sleep read:strain"
-)
-RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
-SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
-STRAIN_URL = "https://api.prod.whoop.com/strain/v1"
+# Rest of your app code continues here...
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
