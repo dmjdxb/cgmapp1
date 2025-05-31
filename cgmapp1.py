@@ -79,20 +79,14 @@ if "code" in st.query_params:
             st.query_params.clear()
             st.rerun()
 
-# Generate state parameter for security
-if "oauth_state" not in st.session_state:
-    st.session_state.oauth_state = py_secrets.token_urlsafe(16)
-
-# Build AUTH_URL with proper URL encoding
-auth_params = {
-    "client_id": WHOOP_CLIENT_ID,
-    "redirect_uri": WHOOP_REDIRECT_URI,
-    "response_type": "code",
-    "scope": "read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement",
-    "state": st.session_state.oauth_state
-}
-
-AUTH_URL = f"https://api.prod.whoop.com/oauth/oauth2/auth?{urlencode(auth_params)}"
+# Build AUTH_URL WITHOUT state parameter to avoid issues
+AUTH_URL = (
+    f"https://api.prod.whoop.com/oauth/oauth2/auth?"
+    f"client_id={WHOOP_CLIENT_ID}"
+    f"&redirect_uri={WHOOP_REDIRECT_URI}"
+    f"&response_type=code"
+    f"&scope=read:recovery+read:cycles+read:sleep+read:workout+read:profile+read:body_measurement"
+)
 
 # Show the auth URL for debugging
 st.write("🔍 Auth URL being used:")
@@ -120,15 +114,8 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Use a button with proper HTML encoding
-    st.sidebar.markdown(
-        f'<a href="{AUTH_URL}" style="text-decoration: none;">'
-        f'<button style="background-color: #FF0000; color: white; '
-        f'padding: 8px 16px; border: none; border-radius: 4px; '
-        f'cursor: pointer; width: 100%; font-weight: bold;">'
-        f'🔗 Connect to WHOOP</button></a>',
-        unsafe_allow_html=True
-    )
+    # Simple link approach
+    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
@@ -137,9 +124,6 @@ else:
 
 # Show session state for debugging
 st.write("🔍 Session state:", list(st.session_state.keys()))
-
-
-# Rest of your app code...
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
@@ -177,6 +161,8 @@ if "whoop_access_token" in st.session_state:
                 
     except Exception as e:
         st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
+
+    # ... rest of your page implementation
 
 # Page content based on selection
 if page == "WHOOP + CGM Adjustments":
