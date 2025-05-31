@@ -13,12 +13,7 @@ from fastapi import FastAPI
 from auth_fastapi_module import router
 import plotly.graph_objects as go
 from urllib.parse import urlparse, parse_qs
-import secrets as py_secrets  # Add this with your other imports
-
-# Debug: Track page loads
-if "page_loads" not in st.session_state:
-    st.session_state.page_loads = 0
-st.session_state.page_loads += 1
+import secrets as py_secrets
 
 # Set up OpenAI API key from secrets
 try:
@@ -29,118 +24,58 @@ except KeyError:
     openai.api_key = None
     client = None
 
-# Load WHOOP secrets FIRST (before using them)
+# Load WHOOP secrets
 try:
-    # Attempt to load secrets
     WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
     WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
     WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
 except KeyError as e:
-    # Show error in the app
     st.error(f"❌ Missing secret: {e}")
     st.error("Please add WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET to your Streamlit secrets.")
-    
-    # Show available secrets (be careful with this in production!)
-    st.write("Available secrets:", list(st.secrets.keys()) if hasattr(st, 'secrets') else "No secrets found")
-    
-    # Set None values to prevent further errors
-    WHOOP_CLIENT_ID = None
-    WHOOP_CLIENT_SECRET = None
-    WHOOP_REDIRECT_URI = None
-    
-    # Stop the app execution
     st.stop()
 
-# Generate a secure state parameter
+# Check for OAuth callback FIRST - this must happen before any other logic
+if "code" in st.experimental_get_query_params():
+    params = st.experimental_get_query_params()
+    code = params["code"][0]
+    
+    if "whoop_access_token" not in st.session_state:
+        # Exchange code for token
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": WHOOP_REDIRECT_URI,
+            "client_id": WHOOP_CLIENT_ID,
+            "client_secret": WHOOP_CLIENT_SECRET
+        }
+        
+        response = requests.post("https://api.prod.whoop.com/oauth/oauth2/token", data=token_data)
+        
+        if response.status_code == 200:
+            token_info = response.json()
+            st.session_state["whoop_access_token"] = token_info["access_token"]
+            # Clear the query params and rerun
+            st.experimental_set_query_params()
+            st.experimental_rerun()
+        else:
+            st.error(f"Failed to authenticate: {response.text}")
+
+# Generate state parameter for security
 if "oauth_state" not in st.session_state:
     st.session_state.oauth_state = py_secrets.token_urlsafe(16)
 
-# WHOOP endpoints (define these BEFORE using them)
-TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
+# Build AUTH_URL
 AUTH_URL = (
     f"https://api.prod.whoop.com/oauth/oauth2/auth?client_id={WHOOP_CLIENT_ID}"
     f"&redirect_uri={WHOOP_REDIRECT_URI}&response_type=code"
     f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
-    f"&state={st.session_state.oauth_state}"  # Add state parameter
+    f"&state={st.session_state.oauth_state}"
 )
-# Debug: Show the full auth URL
-st.write("🔍 DEBUG - Full AUTH_URL:")
-st.code(AUTH_URL)
-RECOVERY_URL = "https://api.prod.whoop.com/recovery/v1"
-SLEEP_URL = "https://api.prod.whoop.com/sleep/v1"
-CYCLES_URL = "https://api.prod.whoop.com/developer/v1/cycle"  # Use this instead of STRAIN_URL
 
-# ADD DEBUG INFO HERE
-st.write("🔍 DEBUG - Current URL parameters:", dict(st.query_params))
-st.write("🔍 DEBUG - Session state keys:", list(st.session_state.keys()))
-st.write(f"🔍 DEBUG - Page loads: {st.session_state.page_loads}")
-
-# Initialize OAuth processing flag
-if "oauth_code_processed" not in st.session_state:
-    st.session_state.oauth_code_processed = False
-
-# Handle OAuth callback with improved logic
-query_params = st.query_params
-if "code" in query_params:
-    current_code = query_params.get("code")
-    
-    # Check if this is a new code we haven't processed
-    if "last_processed_code" not in st.session_state:
-        st.session_state.last_processed_code = None
-    
-    # Only process if: 1) We don't have a token, 2) This is a new code
-    if ("whoop_access_token" not in st.session_state and 
-        current_code != st.session_state.last_processed_code):
-        
-        # Mark this code as being processed
-        st.session_state.last_processed_code = current_code
-        
-        # Verify state parameter for security
-        returned_state = query_params.get("state", "")
-        
-        if returned_state != st.session_state.get("oauth_state", ""):
-            st.error("❌ Invalid state parameter. Please try connecting again.")
-        else:
-            st.info("Processing WHOOP authentication...")
-            st.write(f"🔍 DEBUG - Got auth code: {current_code[:10]}...")  # Show first 10 chars
-            
-            # Exchange code for token
-            token_data = {
-                "grant_type": "authorization_code",
-                "code": current_code,
-                "redirect_uri": WHOOP_REDIRECT_URI,
-                "client_id": WHOOP_CLIENT_ID,
-                "client_secret": WHOOP_CLIENT_SECRET
-            }
-            
-            st.write("🔍 DEBUG - Sending token request...")
-            
-            try:
-                response = requests.post(TOKEN_URL, data=token_data)
-                st.write(f"🔍 DEBUG - Response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    token_info = response.json()
-                    st.write("🔍 DEBUG - Token received successfully!")
-                    st.session_state["whoop_access_token"] = token_info["access_token"]
-                    st.success("✅ Successfully connected to WHOOP!")
-                    
-                    # Set a flag to show we've completed OAuth
-                    st.session_state.oauth_code_processed = True
-                else:
-                    st.error(f"Failed to get token: {response.text}")
-                    st.write("🔍 DEBUG - Full error response:", response.json() if response.text else "No response body")
-            except Exception as e:
-                st.error(f"Error during authentication: {str(e)}")
-                st.write(f"🔍 DEBUG - Exception type: {type(e).__name__}")
-                st.write(f"🔍 DEBUG - Exception details: {str(e)}")
-    
-    elif "whoop_access_token" in st.session_state:
-        st.info("✅ Already authenticated with WHOOP")
-
-# REST OF YOUR APP CODE CONTINUES HERE...
-   
-# REST OF YOUR APP CODE CONTINUES HERE...
+# WHOOP API endpoints
+RECOVERY_URL = "https://api.prod.whoop.com/developer/v1/recovery"
+SLEEP_URL = "https://api.prod.whoop.com/developer/v1/activity/sleep"
+CYCLE_URL = "https://api.prod.whoop.com/developer/v1/cycle"
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
@@ -159,129 +94,125 @@ st.sidebar.divider()
 st.sidebar.subheader("Connect WHOOP")
 
 if "whoop_access_token" not in st.session_state:
-    # Use HTML button for better OAuth flow (stays in same tab)
-    st.sidebar.markdown(
-        f'<a href="{AUTH_URL}" target="_self" style="text-decoration: none;">'
-        f'<button style="width: 100%; background-color: #FF0000; color: white; '
-        f'padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; '
-        f'font-size: 14px; font-weight: bold;">'
-        f'🔗 Connect to WHOOP</button></a>', 
-        unsafe_allow_html=True
-    )
+    # Simple markdown link
+    st.sidebar.markdown(f"[🔗 Connect to WHOOP]({AUTH_URL})")
 else:
     st.sidebar.success("✅ WHOOP Connected")
     if st.sidebar.button("Disconnect WHOOP"):
         del st.session_state["whoop_access_token"]
-        st.rerun()
-        
-
+        st.experimental_rerun()
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
+
 if "whoop_access_token" in st.session_state:
     headers = {"Authorization": f"Bearer {st.session_state['whoop_access_token']}"}
-    start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    end_date = datetime.now().strftime("%Y-%m-%d")
-
+    
+    # Get date range for yesterday
+    end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = end_date - timedelta(days=1)
+    
     try:
-        # Fetch recovery data
-        r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers)
-        if r.status_code == 200:
-            recovery_data = r.json()
-            if recovery_data.get("records"):
-                whoop_data["recovery"] = recovery_data["records"][0]["score"]["recovery_score"]
+        # Fetch cycle data (includes strain)
+        cycle_response = requests.get(
+            f"{CYCLE_URL}?start={start_date.isoformat()}Z&end={end_date.isoformat()}Z",
+            headers=headers
+        )
+        if cycle_response.status_code == 200:
+            cycles = cycle_response.json()
+            if cycles:
+                latest_cycle = cycles[0]
+                whoop_data["strain"] = round(latest_cycle.get("strain", {}).get("score", 12), 1)
+                whoop_data["recovery"] = latest_cycle.get("recovery", {}).get("score", 65)
         
         # Fetch sleep data
-        s = requests.get(f"{SLEEP_URL}?start={start_date}&end={end_date}", headers=headers)
-        if s.status_code == 200:
-            sleep_data = s.json()
-            if sleep_data.get("records"):
-                whoop_data["sleep"] = round(sleep_data["records"][0]["score"]["total_in_bed_hours"], 1)
-        
-        # Fetch cycle data (for strain)
-        c = requests.get(f"{CYCLES_URL}?start={start_date}&end={end_date}", headers=headers)
-        if c.status_code == 200:
-            cycle_data = c.json()
-            if cycle_data.get("records"):
-                whoop_data["strain"] = round(cycle_data["records"][0]["score"]["strain"], 1)
+        sleep_response = requests.get(
+            f"{SLEEP_URL}?start={start_date.isoformat()}Z&end={end_date.isoformat()}Z",
+            headers=headers
+        )
+        if sleep_response.status_code == 200:
+            sleep_data = sleep_response.json()
+            if sleep_data:
+                total_sleep_minutes = sum(s.get("duration_in_millis", 0) for s in sleep_data) / 1000 / 60
+                whoop_data["sleep"] = round(total_sleep_minutes / 60, 1)  # Convert to hours
                 
     except Exception as e:
         st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
-        
-# Inject WHOOP values into adaptive engine
+
+# Page content based on selection
 if page == "WHOOP + CGM Adjustments":
     st.title("💪 WHOOP + CGM Adaptive Nutrition Engine")
-
+    
     strain = whoop_data["strain"]
     recovery = whoop_data["recovery"]
     sleep_hours = whoop_data["sleep"]
-    st.write(f"WHOOP Data Used — Strain: {strain}, Recovery: {recovery}, Sleep: {sleep_hours}h")
-
+    st.write(f"WHOOP Data Used — Strain: {strain}, Recovery: {recovery}%, Sleep: {sleep_hours}h")
+    
     cgm_data = st.text_area("Enter CGM values (comma-separated)", "110,115,120,108,95")
     cgm_values = [int(x.strip()) for x in cgm_data.split(",") if x.strip().isdigit()]
-
+    
     base_cals = st.session_state.get("calories", 2200)
     base_prot = st.session_state.get("protein_g", 150)
     base_carbs = st.session_state.get("carbs_g", 180)
     base_fat = st.session_state.get("fat_g", 60)
-
+    
     def combined_adaptive_macros(glucose_data, strain, recovery, sleep, base_cals, base_prot, base_carbs, base_fat):
         if not glucose_data:
             return base_cals, base_prot, base_carbs, base_fat
-
+            
         avg_glucose = sum(glucose_data) / len(glucose_data)
         variability = max(glucose_data) - min(glucose_data)
-
+        
         c_mult = 1.0
         p_mult = 1.0
         carb_mult = 1.0
         fat_mult = 1.0
-
+        
         if avg_glucose > 125:
             carb_mult *= 0.85
             fat_mult *= 1.1
         elif avg_glucose < 90:
             carb_mult *= 1.1
-
+            
         if variability > 40:
             c_mult *= 0.95
             carb_mult *= 0.9
-
+            
         if strain > 16:
             c_mult *= 1.10
             carb_mult *= 1.15
         elif strain < 8:
             c_mult *= 0.95
-
+            
         if recovery < 40:
             p_mult *= 1.05
             c_mult *= 0.95
-
+            
         if sleep < 6:
             fat_mult *= 1.1
             carb_mult *= 0.9
-
+            
         new_cals = base_cals * c_mult
         new_prot = base_prot * p_mult
         new_carbs = base_carbs * carb_mult
         new_fat = base_fat * fat_mult
-
+        
         return int(new_cals), int(new_prot), int(new_carbs), int(new_fat)
-
+    
     if cgm_values:
         w_cals, w_protein, w_carbs, w_fat = combined_adaptive_macros(
             cgm_values, strain, recovery, sleep_hours,
             base_cals, base_prot, base_carbs, base_fat
         )
-
+        
         st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
         st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
-
+        
         if st.button("Generate WHOOP + CGM Meal Plan"):
             prompt = (
                 f"Create a 1-day performance meal plan using {w_cals} kcal, "
                 f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
-                f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}. "
+                f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}%. "
                 f"Glucose values: {cgm_values}. Adjust for blood sugar balance and performance."
             )
             try:
@@ -295,10 +226,11 @@ if page == "WHOOP + CGM Adjustments":
                 ai_combo_plan = response.choices[0].message.content
                 st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
             except Exception as e:
-                st.error("Meal plan failed: " + str(e))
+                st.error(f"Meal plan generation failed: {str(e)}")
 
+# Add other page implementations here...
 
-# ✅ FastAPI (not used by Streamlit unless run externally)
+# FastAPI (if needed)
 app = FastAPI()
 app.include_router(router)
 
@@ -308,7 +240,6 @@ def read_root():
         "status": "✅ FastAPI is running",
         "message": "Welcome to your CGM + WHOOP + GPT API"
     }
-
 
 
 
