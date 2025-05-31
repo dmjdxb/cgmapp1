@@ -18,8 +18,35 @@ from urllib.parse import urlparse, parse_qs
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 client = openai
 
-# WHOOP credentials from Streamlit secrets
 
+# Handle OAuth callback
+query_params = st.query_params
+if "code" in query_params:
+    st.info("Processing WHOOP authentication...")
+    auth_code = query_params["code"]
+    
+    # Exchange code for token
+    token_data = {
+        "grant_type": "authorization_code",
+        "code": auth_code,
+        "redirect_uri": WHOOP_REDIRECT_URI,
+        "client_id": WHOOP_CLIENT_ID,
+        "client_secret": WHOOP_CLIENT_SECRET
+    }
+    
+    try:
+        response = requests.post(TOKEN_URL, data=token_data)
+        if response.status_code == 200:
+            token_info = response.json()
+            st.session_state["whoop_access_token"] = token_info["access_token"]
+            st.success("✅ Successfully connected to WHOOP!")
+            # Clear the URL parameters
+            st.query_params.clear()
+            st.rerun()
+        else:
+            st.error(f"Failed to get token: {response.text}")
+    except Exception as e:
+        st.error(f"Error during authentication: {str(e)}")
 
 # Move secret loading into a function or use try-except at module level
 try:
