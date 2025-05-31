@@ -133,24 +133,6 @@ else:
         st.rerun()
         
 
-# Parse WHOOP code from URL
-query_params = st.query_params
-if "code" in query_params and "whoop_access_token" not in st.session_state:
-    whoop_code = query_params["code"]
-    token_payload = {
-        "grant_type": "authorization_code",
-        "code": whoop_code,
-        "client_id": WHOOP_CLIENT_ID,
-        "client_secret": WHOOP_CLIENT_SECRET,
-        "redirect_uri": WHOOP_REDIRECT_URI
-    }
-    token_response = requests.post(TOKEN_URL, data=token_payload)
-    if token_response.status_code == 200:
-        access_token = token_response.json().get("access_token")
-        st.session_state["whoop_access_token"] = access_token
-        st.success("✅ WHOOP connected successfully!")
-    else:
-        st.error("❌ Failed to authenticate with WHOOP.")
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
@@ -162,14 +144,14 @@ if "whoop_access_token" in st.session_state:
     try:
         r = requests.get(f"{RECOVERY_URL}?start={start_date}&end={end_date}", headers=headers).json()
         s = requests.get(f"{SLEEP_URL}?start={start_date}&end={end_date}", headers=headers).json()
-        t = requests.get(f"{STRAIN_URL}?start={start_date}&end={end_date}", headers=headers).json()
+        # Use CYCLES_URL instead of STRAIN_URL
+        c = requests.get(f"{CYCLES_URL}?start={start_date}&end={end_date}", headers=headers).json()
 
-        whoop_data["recovery"] = r["records"][0]["score"] if r["records"] else 65
-        whoop_data["sleep"] = round(s["records"][0]["hours"] if s["records"] else 7.5, 1)
-        whoop_data["strain"] = round(t["records"][0]["score"] if t["records"] else 12, 1)
-    except:
-        st.warning("⚠️ Using default WHOOP values due to fetch error.")
-
+        whoop_data["recovery"] = r["records"][0]["score"]["recovery_score"] if r.get("records") else 65
+        whoop_data["sleep"] = round(s["records"][0]["score"]["total_in_bed_hours"] if s.get("records") else 7.5, 1)
+        whoop_data["strain"] = round(c["records"][0]["score"]["strain"] if c.get("records") else 12, 1)
+    except Exception as e:
+        st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
 
 # Automatically fetch and inject WHOOP data
 whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
