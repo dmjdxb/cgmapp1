@@ -1,4 +1,4 @@
-# ✅ WHOOP Integration for Streamlit with Multiple Options
+# ✅ WHOOP Integration for Streamlit
 # -------------------------------------------------------
 import streamlit as st
 import requests
@@ -10,7 +10,8 @@ import plotly.express as px
 from datetime import datetime, timedelta
 from io import StringIO
 import plotly.graph_objects as go
-
+from urllib.parse import urlparse, parse_qs
+import secrets as py_secrets
 # Set up OpenAI API key from secrets
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -320,22 +321,8 @@ if page == "WHOOP + CGM Adjustments":
             except Exception as e:
                 st.error(f"Meal plan generation failed: {str(e)}")
 
-# Add other pages as needed...
-
 # Add your other page implementations here...
 
-# Add other page implementations here...
-
-# FastAPI (if needed)
-app = FastAPI()
-app.include_router(router)
-
-@app.get("/")
-def read_root():
-    return {
-        "status": "✅ FastAPI is running",
-        "message": "Welcome to your CGM + WHOOP + GPT API"
-    }
 
 # ========== PAGE 1: Nutrition Profile ==========
 if page == "Nutrition Profile":
