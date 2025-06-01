@@ -1,4 +1,4 @@
-# ✅ WHOOP Manual OAuth Integration for Streamlit
+# ✅ WHOOP Integration for Streamlit with Multiple Options
 # -------------------------------------------------------
 import streamlit as st
 import requests
@@ -9,11 +9,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 from io import StringIO
-from fastapi import FastAPI
-from auth_fastapi_module import router
 import plotly.graph_objects as go
-from urllib.parse import urlparse, parse_qs
-import secrets as py_secrets
 
 # Set up OpenAI API key from secrets
 try:
@@ -24,19 +20,18 @@ except KeyError:
     openai.api_key = None
     client = None
 
-# Load WHOOP secrets
+# WHOOP API Configuration
+WHOOP_API_BASE = "https://api.prod.whoop.com/developer"
+WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth"
+WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
+
+# Load WHOOP OAuth credentials if available
 try:
     WHOOP_CLIENT_ID = st.secrets["WHOOP_CLIENT_ID"]
     WHOOP_CLIENT_SECRET = st.secrets["WHOOP_CLIENT_SECRET"]
-    WHOOP_REDIRECT_URI = "https://cgmapp1py-cke3lbga3zvnszbci6gegb.streamlit.app/"
-except KeyError as e:
-    st.error(f"❌ Missing secret: {e}")
-    st.stop()
-
-# WHOOP API endpoints
-RECOVERY_URL = "https://api.prod.whoop.com/developer/v1/recovery"
-SLEEP_URL = "https://api.prod.whoop.com/developer/v1/activity/sleep"
-CYCLE_URL = "https://api.prod.whoop.com/developer/v1/cycle"
+    has_oauth_creds = True
+except:
+    has_oauth_creds = False
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
@@ -50,120 +45,186 @@ page = st.sidebar.radio("Navigate", [
     "Metabolic Adaptation Score"
 ])
 
-# WHOOP Login Section
+# WHOOP Connection Section
 st.sidebar.divider()
-st.sidebar.subheader("Connect WHOOP")
+st.sidebar.subheader("WHOOP Connection")
 
-if "whoop_access_token" not in st.session_state:
-    with st.sidebar.expander("Connect WHOOP Account", expanded=True):
-        st.markdown("### Step 1: Authorize")
-        
-        # Create auth URL with a simple state
-        auth_url = (
-            f"https://api.prod.whoop.com/oauth/oauth2/auth?"
-            f"client_id={WHOOP_CLIENT_ID}"
-            f"&redirect_uri={WHOOP_REDIRECT_URI}"
-            f"&response_type=code"
-            f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
-            f"&state=streamlit123456"
-        )
-        
-        st.markdown(f"[🔗 Click here to authorize WHOOP]({auth_url})")
-        
-        st.markdown("### Step 2: Copy the code")
-        st.markdown("After authorizing, you'll see an error page. **This is normal!**")
-        st.markdown("Look at the URL bar - it will contain `?code=XXXXX`")
-        st.markdown("Copy everything after `code=` and before any `&`")
-        
-        st.markdown("### Step 3: Paste the code")
-        auth_code = st.text_input("Authorization Code", placeholder="Paste code here")
-        
-        if st.button("Connect", type="primary"):
-            if auth_code:
-                with st.spinner("Connecting to WHOOP..."):
-                    # Exchange code for token
-                    token_data = {
-                        "grant_type": "authorization_code",
-                        "code": auth_code.strip(),
-                        "redirect_uri": WHOOP_REDIRECT_URI,
-                        "client_id": WHOOP_CLIENT_ID,
-                        "client_secret": WHOOP_CLIENT_SECRET
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            "https://api.prod.whoop.com/oauth/oauth2/token", 
-                            data=token_data
-                        )
-                        
-                        if response.status_code == 200:
-                            token_info = response.json()
-                            st.session_state["whoop_access_token"] = token_info["access_token"]
-                            st.success("✅ Successfully connected!")
-                            st.rerun()
-                        else:
-                            st.error(f"Connection failed: {response.text}")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-            else:
-                st.error("Please enter the authorization code")
-else:
-    st.sidebar.success("✅ WHOOP Connected")
-    if st.sidebar.button("Disconnect WHOOP"):
-        del st.session_state["whoop_access_token"]
-        st.rerun()
+# Function to test WHOOP token
+def test_whoop_token(token):
+    """Test if a WHOOP token is valid"""
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(f"{WHOOP_API_BASE}/v1/user/profile/basic", headers=headers)
+    return response.status_code == 200
 
-# Automatically fetch and inject WHOOP data
-whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
-
-if "whoop_access_token" in st.session_state:
-    headers = {"Authorization": f"Bearer {st.session_state['whoop_access_token']}"}
+# Function to fetch WHOOP data
+def get_whoop_data(token):
+    """Fetch WHOOP data using the API"""
+    headers = {"Authorization": f"Bearer {token}"}
+    whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}  # defaults
     
-    # Get date range for yesterday
-    end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    start_date = end_date - timedelta(days=1)
+    # Calculate date range (last 7 days)
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=7)
     
     try:
-        # Fetch cycle data (includes strain)
-        cycle_response = requests.get(
-            f"{CYCLE_URL}?start={start_date.isoformat()}Z&end={end_date.isoformat()}Z",
-            headers=headers
-        )
-        if cycle_response.status_code == 200:
-            cycles = cycle_response.json()
-            if cycles and len(cycles) > 0:
-                latest_cycle = cycles[0]
-                if "strain" in latest_cycle and "score" in latest_cycle["strain"]:
-                    whoop_data["strain"] = round(latest_cycle["strain"]["score"], 1)
-                if "recovery" in latest_cycle and "score" in latest_cycle["recovery"]:
-                    whoop_data["recovery"] = latest_cycle["recovery"]["score"]
+        # Fetch cycles (includes strain)
+        cycles_url = f"{WHOOP_API_BASE}/v1/cycle"
+        params = {
+            "start": start_date.isoformat() + "Z",
+            "end": end_date.isoformat() + "Z",
+            "limit": 10
+        }
         
-        # Fetch sleep data
-        sleep_response = requests.get(
-            f"{SLEEP_URL}?start={start_date.isoformat()}Z&end={end_date.isoformat()}Z",
-            headers=headers
-        )
-        if sleep_response.status_code == 200:
-            sleep_data = sleep_response.json()
-            if sleep_data and len(sleep_data) > 0:
-                total_sleep_ms = sum(s.get("duration_millis", 0) for s in sleep_data)
-                whoop_data["sleep"] = round(total_sleep_ms / 1000 / 60 / 60, 1)  # Convert to hours
-                
+        response = requests.get(cycles_url, headers=headers, params=params)
+        if response.status_code == 200:
+            cycles = response.json().get("records", [])
+            if cycles:
+                # Get the most recent scored cycle
+                for cycle in cycles:
+                    if cycle.get("score_state") == "SCORED" and cycle.get("score"):
+                        whoop_data["strain"] = round(cycle["score"]["strain"], 1)
+                        break
+        
+        # Fetch recovery
+        recovery_url = f"{WHOOP_API_BASE}/v1/recovery"
+        response = requests.get(recovery_url, headers=headers, params=params)
+        if response.status_code == 200:
+            recoveries = response.json().get("records", [])
+            if recoveries:
+                for recovery in recoveries:
+                    if recovery.get("score_state") == "SCORED" and recovery.get("score"):
+                        whoop_data["recovery"] = round(recovery["score"]["recovery_score"])
+                        break
+        
+        # Fetch sleep
+        sleep_url = f"{WHOOP_API_BASE}/v1/activity/sleep"
+        response = requests.get(sleep_url, headers=headers, params=params)
+        if response.status_code == 200:
+            sleeps = response.json().get("records", [])
+            if sleeps:
+                for sleep in sleeps:
+                    if sleep.get("score_state") == "SCORED" and sleep.get("score"):
+                        # Convert milliseconds to hours
+                        total_sleep_ms = sleep["score"]["stage_summary"]["total_in_bed_time_milli"]
+                        total_sleep_ms -= sleep["score"]["stage_summary"]["total_awake_time_milli"]
+                        whoop_data["sleep"] = round(total_sleep_ms / 1000 / 60 / 60, 1)
+                        break
+                        
     except Exception as e:
-        st.warning(f"⚠️ Using default WHOOP values due to fetch error: {str(e)}")
+        st.warning(f"Error fetching WHOOP data: {str(e)}")
+    
+    return whoop_data
 
-# Page content based on selection
+# WHOOP Connection Options
+if "whoop_access_token" not in st.session_state:
+    connection_method = st.sidebar.radio(
+        "Connection Method:",
+        ["Use Demo Data", "Direct Token Entry", "OAuth (Local Only)"]
+    )
+    
+    if connection_method == "Use Demo Data":
+        if st.sidebar.button("Use Demo WHOOP Data"):
+            st.session_state["use_demo_data"] = True
+            st.sidebar.success("Using demo data!")
+            
+    elif connection_method == "Direct Token Entry":
+        st.sidebar.info("""
+        **To get a WHOOP access token:**
+        1. You'll need to use WHOOP's API tools
+        2. Or run this app locally for OAuth
+        """)
+        
+        token_input = st.sidebar.text_input("WHOOP Access Token", type="password")
+        
+        if st.sidebar.button("Connect with Token"):
+            if token_input:
+                if test_whoop_token(token_input):
+                    st.session_state["whoop_access_token"] = token_input
+                    st.sidebar.success("✅ Token validated!")
+                    st.rerun()
+                else:
+                    st.sidebar.error("❌ Invalid token")
+            else:
+                st.sidebar.error("Please enter a token")
+                
+    elif connection_method == "OAuth (Local Only)":
+        st.sidebar.warning("""
+        **OAuth doesn't work on Streamlit Cloud**
+        
+        To use OAuth:
+        1. Download this app
+        2. Run locally: `streamlit run app.py`
+        3. Connect via OAuth on localhost
+        """)
+        
+        if has_oauth_creds:
+            oauth_url = (
+                f"{WHOOP_AUTH_URL}?client_id={WHOOP_CLIENT_ID}"
+                f"&redirect_uri=http://localhost:8501/callback"
+                f"&response_type=code"
+                f"&scope=read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement"
+                f"&state=whoop_oauth_state"
+            )
+            st.sidebar.markdown(f"[Connect via OAuth (Local Only)]({oauth_url})")
+            
+else:
+    # Connected state
+    if st.session_state.get("use_demo_data"):
+        st.sidebar.success("✅ Using Demo Data")
+    else:
+        st.sidebar.success("✅ WHOOP Connected")
+    
+    if st.sidebar.button("Disconnect"):
+        for key in ["whoop_access_token", "use_demo_data"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
+
+# Custom demo data controls
+if st.session_state.get("use_demo_data"):
+    with st.sidebar.expander("Customize Demo Data"):
+        demo_strain = st.slider("Strain", 0.0, 21.0, 12.0, 0.1)
+        demo_recovery = st.slider("Recovery %", 0, 100, 65)
+        demo_sleep = st.slider("Sleep Hours", 0.0, 12.0, 7.5, 0.1)
+        st.session_state["demo_whoop_data"] = {
+            "strain": demo_strain,
+            "recovery": demo_recovery,
+            "sleep": demo_sleep
+        }
+
+# Page content
 if page == "WHOOP + CGM Adjustments":
     st.title("💪 WHOOP + CGM Adaptive Nutrition Engine")
     
-    strain = whoop_data["strain"]
-    recovery = whoop_data["recovery"]
-    sleep_hours = whoop_data["sleep"]
-    st.write(f"WHOOP Data Used — Strain: {strain}, Recovery: {recovery}%, Sleep: {sleep_hours}h")
+    # Get WHOOP data based on connection method
+    if st.session_state.get("use_demo_data"):
+        whoop_data = st.session_state.get("demo_whoop_data", {
+            "strain": 12, "recovery": 65, "sleep": 7.5
+        })
+        st.info("📊 Using demo WHOOP data (customize in sidebar)")
+    elif "whoop_access_token" in st.session_state:
+        with st.spinner("Fetching WHOOP data..."):
+            whoop_data = get_whoop_data(st.session_state["whoop_access_token"])
+        st.success("📊 Using live WHOOP data")
+    else:
+        whoop_data = {"strain": 12, "recovery": 65, "sleep": 7.5}
+        st.warning("📊 Using default values - connect WHOOP in sidebar")
     
+    # Display WHOOP metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Strain", f"{whoop_data['strain']}")
+    with col2:
+        st.metric("Recovery", f"{whoop_data['recovery']}%")
+    with col3:
+        st.metric("Sleep", f"{whoop_data['sleep']}h")
+    
+    # CGM input
+    st.subheader("CGM Data")
     cgm_data = st.text_area("Enter CGM values (comma-separated)", "110,115,120,108,95")
     cgm_values = [int(x.strip()) for x in cgm_data.split(",") if x.strip().isdigit()]
     
+    # Base macros
     base_cals = st.session_state.get("calories", 2200)
     base_prot = st.session_state.get("protein_g", 150)
     base_carbs = st.session_state.get("carbs_g", 180)
@@ -181,6 +242,7 @@ if page == "WHOOP + CGM Adjustments":
         carb_mult = 1.0
         fat_mult = 1.0
         
+        # Glucose adjustments
         if avg_glucose > 125:
             carb_mult *= 0.85
             fat_mult *= 1.1
@@ -191,16 +253,19 @@ if page == "WHOOP + CGM Adjustments":
             c_mult *= 0.95
             carb_mult *= 0.9
             
+        # Strain adjustments
         if strain > 16:
             c_mult *= 1.10
             carb_mult *= 1.15
         elif strain < 8:
             c_mult *= 0.95
             
+        # Recovery adjustments
         if recovery < 40:
             p_mult *= 1.05
             c_mult *= 0.95
             
+        # Sleep adjustments
         if sleep < 6:
             fat_mult *= 1.1
             carb_mult *= 0.9
@@ -212,20 +277,34 @@ if page == "WHOOP + CGM Adjustments":
         
         return int(new_cals), int(new_prot), int(new_carbs), int(new_fat)
     
+    # Calculate adapted macros
     if cgm_values:
         w_cals, w_protein, w_carbs, w_fat = combined_adaptive_macros(
-            cgm_values, strain, recovery, sleep_hours,
+            cgm_values, 
+            whoop_data["strain"], 
+            whoop_data["recovery"], 
+            whoop_data["sleep"],
             base_cals, base_prot, base_carbs, base_fat
         )
         
-        st.markdown(f"**Adaptive Calories:** {w_cals} kcal")
-        st.markdown(f"**Protein:** {w_protein}g | Carbs: {w_carbs}g | Fat: {w_fat}g")
+        st.subheader("Adaptive Nutrition Recommendations")
         
-        if st.button("Generate WHOOP + CGM Meal Plan"):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Calories", f"{w_cals} kcal", f"{w_cals - base_cals:+d}")
+        with col2:
+            st.metric("Protein", f"{w_protein}g", f"{w_protein - base_prot:+d}")
+        with col3:
+            st.metric("Carbs", f"{w_carbs}g", f"{w_carbs - base_carbs:+d}")
+        with col4:
+            st.metric("Fat", f"{w_fat}g", f"{w_fat - base_fat:+d}")
+        
+        if st.button("Generate WHOOP + CGM Meal Plan", type="primary"):
             prompt = (
                 f"Create a 1-day performance meal plan using {w_cals} kcal, "
                 f"{w_protein}g protein, {w_carbs}g carbs, {w_fat}g fat. "
-                f"User had {sleep_hours} hours sleep, strain score {strain}, and recovery score {recovery}%. "
+                f"User had {whoop_data['sleep']} hours sleep, strain score {whoop_data['strain']}, "
+                f"and recovery score {whoop_data['recovery']}%. "
                 f"Glucose values: {cgm_values}. Adjust for blood sugar balance and performance."
             )
             try:
@@ -237,9 +316,11 @@ if page == "WHOOP + CGM Adjustments":
                     ]
                 )
                 ai_combo_plan = response.choices[0].message.content
-                st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=300)
+                st.text_area("WHOOP + CGM-Based Meal Plan", ai_combo_plan, height=400)
             except Exception as e:
                 st.error(f"Meal plan generation failed: {str(e)}")
+
+# Add other pages as needed...
 
 # Add your other page implementations here...
 
